@@ -19,7 +19,8 @@ async fn main() -> anyhow::Result<()> {
     //println!("TLS connection established!");
 
     ///setup the tun to read packets and echo them back
-    let mut tun = TunInterface::create()?;
+    let mut tun = TunInterface::create_client()?;
+    tun.configure_client_ip()?;
     println!("TUN device created: {}", tun.name);
 
     loop {

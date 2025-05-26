@@ -4,13 +4,16 @@
 /// completes the TLS handshake over TCP
 use anyhow::{Context, Result};
 use std::sync::Arc;
-use tokio::net::{TcpStream, TcpListener};
+use tokio::net::{TcpListener, TcpStream};
 use tokio_rustls::{
-    rustls::{ClientConfig, OwnedTrustAnchor, RootCertStore, ServerName},
-    TlsConnector,
+    rustls::{
+        Certificate, ClientConfig, OwnedTrustAnchor, PrivateKey, RootCertStore,
+        ServerConfig, ServerName,
+    },
+    TlsAcceptor, TlsConnector,
 };
 use webpki_roots::TLS_SERVER_ROOTS;
-use tokio_rustls::{}
+use std::{fs::File, io::BufReader};
 
 pub async fn connect_tls(
     domain: &str,
