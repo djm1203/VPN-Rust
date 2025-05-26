@@ -6,10 +6,11 @@ use vpn_rust::net::tun::TunInterface;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let tun = Arc::new(Mutex::new(TunInterface::create()?));
+    let tun = Arc::new(Mutex::new(TunInterface::create_server()?));
+    tun.lock().await.configure_server_ip()?;
     println!("Tun device created: {}", tun.lock().await.name);
 
-    let listener = start_tls_server("122.0.0.1:4433").await?;
+    let listener = start_tls_server("127.0.0.1:4433").await?;
 
     loop {
         let (mut stream, _) = listener.accept().await?;
@@ -32,7 +33,7 @@ async fn main() -> anyhow::Result<()> {
 
                 println!("[server] Got {} bytes from client", len);
                 let mut tun_guard = tun.lock().await;
-                tun.lock().await.write_packet(&buf).await.unwrap();
+                tun_guard.write_packet(&buf).await.unwrap();
 
                 //then echo it back
                 stream.write_all(&(len as u16).to_be_bytes()).await.unwrap();
