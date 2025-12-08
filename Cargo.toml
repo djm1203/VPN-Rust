@@ -2,12 +2,15 @@
 name = "vpn-rust"
 version = "0.1.0"
 edition = "2021"
+default-run = "vpn-rust"
 
 [dependencies]
 tokio = { version = "1.38", features = ["full"] }
 ratatui = "0.25.0"
 crossterm = "0.27"
 clap = { version = "4.5", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
 rustls = "0.21"
 webpki-roots = "0.22.6"
 x509-parser = "0.16"

@@ -1,0 +1,53 @@
+# VPN-Rust Example Configuration
+# Copy this file to config.toml and adjust values as needed.
+
+# Server configuration (used with: vpn-rust server)
+[server]
+# Address to bind the server to (0.0.0.0 = all interfaces)
+bind = "0.0.0.0"
+
+# Port to listen on
+port = 4433
+
+# TLS certificate and key paths
+cert = "certs/server.crt"
+key = "certs/server.key"
+
+# TUN interface name
+tun_name = "rustvpn0"
+
+# VPN subnet in CIDR notation
+subnet = "10.8.0.0/24"
+
+# Server IP address within VPN subnet
+server_ip = "10.8.0.1"
+
+# Enable NAT for client internet access
+enable_nat = true
+
+# Outbound interface for NAT (leave commented for auto-detection)
+# nat_interface = "eth0"
+
+
+# Client configuration (used with: vpn-rust client)
+[client]
+# Server address to connect to
+server = "127.0.0.1"
+
+# Server port
+port = 4433
+
+# Server hostname for TLS certificate verification
+hostname = "localhost"
+
+# TUN interface name
+tun_name = "rustvpn1"
+
+# Client IP address within VPN subnet
+client_ip = "10.8.0.2"
+
+# Disable automatic reconnection
+no_reconnect = false
+
+# Maximum reconnection attempts (0 = unlimited)
+max_reconnects = 0

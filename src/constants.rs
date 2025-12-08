@@ -32,6 +32,9 @@ pub const SERVER_IP: &str = "10.8.0.1";
 /// Client IP address (without CIDR).
 pub const CLIENT_IP: &str = "10.8.0.2";
 
+/// VPN subnet in CIDR notation.
+pub const VPN_SUBNET: &str = "10.8.0.0/30";
+
 // --- TLS Configuration ---
 
 /// Default server bind address.
@@ -46,6 +49,15 @@ pub const SERVER_CERT_PATH: &str = "certs/server.crt";
 /// Path to server private key.
 pub const SERVER_KEY_PATH: &str = "certs/server.key";
 
+/// Path to CA certificate (for client verification).
+pub const CA_CERT_PATH: &str = "certs/ca.crt";
+
+/// Path to client certificate.
+pub const CLIENT_CERT_PATH: &str = "certs/client.crt";
+
+/// Path to client private key.
+pub const CLIENT_KEY_PATH: &str = "certs/client.key";
+
 // --- OpenVPN Compatibility ---
 
 /// Default OpenVPN port.
@@ -55,3 +67,20 @@ pub const DEFAULT_OVPN_PORT: u16 = 1194;
 
 /// Time to wait after cleaning up an interface (milliseconds).
 pub const INTERFACE_CLEANUP_DELAY_MS: u64 = 200;
+
+/// Keepalive interval in seconds.
+pub const KEEPALIVE_INTERVAL_SECS: u64 = 10;
+
+/// Connection timeout in seconds (no keepalive received).
+pub const CONNECTION_TIMEOUT_SECS: u64 = 30;
+
+/// Reconnection initial delay in milliseconds.
+pub const RECONNECT_INITIAL_DELAY_MS: u64 = 1000;
+
+/// Maximum reconnection delay in milliseconds.
+pub const RECONNECT_MAX_DELAY_MS: u64 = 30000;
+
+// --- Protocol ---
+
+/// Keepalive packet marker (length field = 0 indicates keepalive).
+pub const KEEPALIVE_MARKER: u16 = 0;
