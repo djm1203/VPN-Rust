@@ -9,6 +9,7 @@
 //! `NetConfigurator` abstraction (backlog B-020).
 
 pub mod device;
+pub mod netcfg;
 
 #[cfg(unix)]
 pub mod route;

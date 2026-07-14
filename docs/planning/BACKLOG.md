@@ -71,9 +71,9 @@ When an item ships: `Shipped — <commit> — <date>`.
 | B-017 | [CORE] M2 | `TunDevice` trait abstracting the platform TUN backend | HIGH | Done (local) — `net::device::{TunDevice, SystemTun}` |
 | B-018 | [CORE] M2 | TUN backends via `tun-rs`: Linux, macOS (utun), Windows (wintun) | HIGH | In Progress — `tun-rs` backend compiles on Linux; Windows/macOS compile + runtime verification pending |
 | B-019 | [CORE] M2 | **Verify Windows client actually compiles and runs** (closes the #1 blocker) | HIGH | Compiles — native `cargo build` on windows-msvc succeeds (was 4 errors at session start); runtime verification (wintun.dll + admin, real macOS host) still pending |
-| B-020 | [CORE] M2 | `NetConfigurator` trait for address/route/NAT/DNS, with guaranteed rollback on drop/crash | HIGH | Pending |
-| B-021 | [CORE] M2 | Linux `NetConfigurator` via netlink (`rtnetlink`) or wrapped `ip`, behind the trait | MED | Pending |
-| B-022 | [CORE] M2 | macOS + Windows route/DNS configurators | MED | Pending |
+| B-020 | [CORE] M2 | `NetConfigurator` trait for address/route/NAT/DNS, with guaranteed rollback on drop/crash | HIGH | Done (local) — `net::netcfg::NetConfigurator`; rollback on drop; wired into `engine` (server NAT, client route) |
+| B-021 | [CORE] M2 | Linux `NetConfigurator` via netlink (`rtnetlink`) or wrapped `ip`, behind the trait | MED | Done (local) — `LinuxNetConfigurator` wraps `ip`/`iptables`/`sysctl` (netlink refinement optional) |
+| B-022 | [CORE] M2 | macOS + Windows route/DNS configurators | MED | In Progress — Noop configurator (warns to configure manually) on non-Linux; native impls pending |
 | B-023 | [CORE] M2 | Config-driven addressing; collapse multi-client `ClientManager`/`IpPool` to a single-peer session | MED | Done (local) — CLI-driven addressing; single-peer engine; `clients.rs` removed |
 
 ## M3 — Security hardening (P2P)

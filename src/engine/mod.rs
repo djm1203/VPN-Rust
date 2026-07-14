@@ -49,6 +49,8 @@ pub struct ServerParams {
     pub cert_path: PathBuf,
     /// Path to the server's private key (DER); generated if missing.
     pub key_path: PathBuf,
+    /// Outbound interface for server NAT (auto-detected when `None`).
+    pub nat_interface: Option<String>,
 }
 
 /// Parameters for running the client side of the tunnel.
@@ -101,6 +103,14 @@ pub async fn run_server(params: ServerParams) -> Result<()> {
         params.tun_ip,
         params.prefix
     );
+
+    // Configure host networking (IP forwarding + NAT). Kept alive for the
+    // lifetime of the server; reverted on drop.
+    let subnet = subnet_cidr(params.tun_ip, params.prefix);
+    let mut netcfg = crate::net::netcfg::platform_default();
+    if let Err(e) = netcfg.setup_server(&subnet, params.nat_interface.as_deref()) {
+        warn!("failed to configure server networking (continuing without NAT): {e:#}");
+    }
 
     let offered = SessionParams {
         mtu: params.mtu,
@@ -157,6 +167,13 @@ pub async fn run_client(params: ClientParams) -> Result<()> {
         params.tun_ip,
         params.prefix
     );
+
+    // Route the VPN subnet through the tunnel. Reverted on drop.
+    let subnet = subnet_cidr(params.tun_ip, params.prefix);
+    let mut netcfg = crate::net::netcfg::platform_default();
+    if let Err(e) = netcfg.setup_client(&subnet, tun.name()) {
+        warn!("failed to configure client routing (continuing): {e:#}");
+    }
 
     let initial_delay = Duration::from_millis(RECONNECT_INITIAL_DELAY_MS);
     let mut delay = initial_delay;
@@ -262,9 +279,35 @@ async fn pump(tun: Arc<SystemTun>, transport: Arc<QuicTransport>) -> Result<()> 
     }
 }
 
+/// Compute the network address in CIDR form for `ip`/`prefix`
+/// (e.g. `10.8.0.2/30` -> `10.8.0.0/30`).
+fn subnet_cidr(ip: Ipv4Addr, prefix: u8) -> String {
+    let p = (prefix.min(32)) as u32;
+    let mask = if p == 0 { 0 } else { u32::MAX << (32 - p) };
+    let network = Ipv4Addr::from(u32::from(ip) & mask);
+    format!("{network}/{p}")
+}
+
 /// Load a DER-encoded certificate from disk for pinning.
 fn load_certificate(path: &std::path::Path) -> Result<CertificateDer<'static>> {
     let der = fs::read(path)
         .with_context(|| format!("failed to read certificate '{}'", path.display()))?;
     Ok(CertificateDer::from(der))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::subnet_cidr;
+    use std::net::Ipv4Addr;
+
+    #[test]
+    fn subnet_cidr_masks_host_bits() {
+        assert_eq!(subnet_cidr(Ipv4Addr::new(10, 8, 0, 2), 30), "10.8.0.0/30");
+        assert_eq!(subnet_cidr(Ipv4Addr::new(10, 8, 0, 1), 24), "10.8.0.0/24");
+        assert_eq!(
+            subnet_cidr(Ipv4Addr::new(192, 168, 1, 55), 16),
+            "192.168.0.0/16"
+        );
+        assert_eq!(subnet_cidr(Ipv4Addr::new(10, 0, 0, 5), 32), "10.0.0.5/32");
+    }
 }

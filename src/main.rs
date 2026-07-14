@@ -47,6 +47,7 @@ async fn main() -> Result<()> {
                 mtu: args.mtu,
                 cert_path: args.cert,
                 key_path: args.key,
+                nat_interface: args.nat_interface,
             };
             engine::run_server(params).await
         }

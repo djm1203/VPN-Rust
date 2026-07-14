@@ -78,6 +78,10 @@ pub struct ServerArgs {
     /// Path to the server private key (DER); generated if missing
     #[arg(long, default_value = "certs/server-key.der")]
     pub key: PathBuf,
+
+    /// Outbound interface for server NAT (auto-detected if omitted)
+    #[arg(long)]
+    pub nat_interface: Option<String>,
 }
 
 /// Client command arguments
@@ -181,6 +185,7 @@ mod tests {
             mtu: 1300,
             cert: PathBuf::from("certs/server-cert.der"),
             key: PathBuf::from("certs/server-key.der"),
+            nat_interface: None,
         })
     }
 
