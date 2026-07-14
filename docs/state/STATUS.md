@@ -12,7 +12,7 @@ author: Derek Martinez
 
 # Status — VPN-Rust
 
-**Last updated:** 2026-07-13 — production-direction pivot committed.
+**Last updated:** 2026-07-14 — QUIC engine landed; the crate now builds on Windows.
 
 ## Project Snapshot
 
@@ -38,7 +38,26 @@ author: Derek Martinez
 
 ## Done
 
-- **Production pivot committed (this session):** committed to the production direction and rewrote
+- **M0 — Foundation (done):** established a Linux/WSL build+test path (WSL Ubuntu, Rust 1.95);
+  hardened CI (fmt + `clippy -D warnings` + `cargo audit` + cross-platform build matrix); migrated
+  `log`/`env_logger` → `tracing`; introduced `thiserror` at the `config` boundary
+  (`config::ConfigError`).
+- **M1 — QUIC transport core (done):** `transport::Transport` seam + `quinn` implementation
+  (`QuicTransport`) carrying tunneled IP packets as **QUIC datagrams**; versioned control-stream
+  handshake with parameter negotiation (`transport::control`); QUIC keep-alive + idle-timeout;
+  client reconnect with exponential backoff; **legacy TLS-over-TCP path removed** (`net/tls.rs`,
+  `net/tun.rs`, `net/clients.rs`, old bins deleted; rustls 0.21 / tokio-rustls / webpki-roots /
+  rustls-pemfile / x509-parser / tun 0.6 / winapi dropped).
+- **M2 — cross-platform TUN (build unblocked):** `net::device::{TunDevice, SystemTun}` via
+  `tun-rs` (Linux/macOS/Windows); **the crate now compiles natively on Windows** (was 4 errors at
+  session start). `engine::{run_server,run_client}` pump packets between the TUN and QUIC
+  datagrams; single-peer P2P; multi-client scaffolding removed.
+- **M3 — security (partial):** `crypto::NodeIdentity` load-or-generate self-signed identity (DER;
+  `0600` key perms on Unix); QUIC client **pins the peer certificate**. Smoke-tested: the real
+  binary generates its identity and binds the QUIC endpoint (TUN step correctly root-gated).
+- **Verification:** 17 unit + 2 integration (loopback QUIC echo + control handshake) + 2 doc tests
+  green on Linux; `clippy -D warnings` and `fmt` clean; native Windows `cargo build` succeeds.
+- **Production pivot committed (earlier this session):** committed to the production direction and rewrote
   the core planning docs to the QUIC P2P direction — `docs/planning/BACKLOG.md`,
   `docs/planning/EXECUTION_PLAN.md`, `docs/state/DECISIONS.md` (D-10…D-18), and
   `docs/architecture/ARCHITECTURE.md`. The derivative docs (STATUS, HANDOFF, RISKS,
@@ -51,34 +70,33 @@ author: Derek Martinez
 
 ## In Flight
 
-- **Production pivot planning complete; entering M0 (Foundation & unblock).** The direction and
-  milestone plan (M0–M5) are decided and documented; execution begins at M0.
+- Finishing **M2** (`NetConfigurator` route/NAT/DNS abstraction) and **M3** (security hardening
+  refinements).
 
 ## Next
 
-**M0 — Foundation & unblock (NEXT):**
+- **M2 remainder:** `NetConfigurator` trait + per-OS route/NAT/DNS with rollback (B-020–022),
+  wrapping the Linux `route`/`security` modules; inner-MTU/PMTU clamp (B-016).
+- **M3 remainder:** `keygen` CLI subcommand; SPKI-fingerprint pinning + fingerprint display (TOFU);
+  `zeroize` private keys; config validation.
+- **M4 — TUI control dashboard:** upgrade ratatui 0.25→0.29 and rebuild the TUI as an event-driven
+  control cockpit (connect/disconnect, live throughput graphs, peer/route panels, log viewer,
+  theming), fed by an engine stats/event channel.
+- **M5 — Release readiness:** metrics, `--daemon` + systemd unit, per-OS packaging, docs, SemVer.
+- **On-target verification:** run the tunnel end-to-end with root on Linux and validate the Windows
+  (wintun) / macOS (utun) clients on real hosts.
 
-1. **Establish a Linux/WSL build+test path** — the crate cannot compile on this Windows host, so
-   the first task is a place where `cargo build`/`test` actually run.
-2. **CI quality gates** — multi-OS CI matrix with clippy / fmt --check / `cargo audit` gates.
-3. **Root-free loopback integration-test harness** — so networking code can be exercised without
-   root / CAP_NET_ADMIN.
-4. **Migrate `log` → `tracing`** (D-14) and **introduce `thiserror` error seams** (D-15).
+## Known Issues / Limitations
 
-**Then M1 — QUIC transport core:** introduce the `Transport` trait and a `quinn` implementation
-(IP packets over QUIC datagrams + a versioned reliable control stream); the old TLS-over-TCP path
-(`tls.rs`) is removed here.
-
-Later milestones: M2 cross-platform TUN + `NetConfigurator`; M3 pinned-key security hardening; M4
-TUI control dashboard (ratatui 0.29); M5 release readiness.
-
-## Known Issues
-
-- **Build FAILS on Windows** (the current dev host): `src/net/tun.rs` depends on Linux-only APIs;
-  `cargo test` cannot run here. This is the #1 blocker — M0 establishes a Linux/WSL path and M2
-  delivers the cross-platform `TunDevice` fix.
-- **Minimal test coverage:** a handful of unit tests (config parsing) + doc tests; no integration
-  tests. M0 adds the loopback harness.
-- **Security posture (prototype):** self-signed certs only, no certificate revocation, trust model
-  assumes trusted endpoints; not security-audited. Superseded by pinned keypairs in M3.
-- **Privileges:** TUN interface creation requires root / CAP_NET_ADMIN.
+- **Runtime verification is partial:** the crate builds on Linux **and Windows**, and the binary
+  runs up to TUN creation (root-gated). The full packet-forwarding path is not yet exercised
+  end-to-end (needs root; the dev WSL has no passwordless sudo), and the Windows/macOS clients have
+  not been run on real hosts (need wintun.dll / a macOS box).
+- **No routing/NAT wired yet:** the engine tunnels packets between the two TUN devices but does not
+  yet configure host routes or server NAT — the `NetConfigurator` abstraction (M2, B-020–022) is
+  pending; the Linux `route`/`security` modules exist but are not wired in.
+- **Security refinements pending (M3):** pinning is by exact certificate (single-entry root store),
+  not yet SPKI-fingerprint with display/TOFU; private keys are not yet zeroized.
+- **TUI not yet reworked:** the prototype ratatui 0.25 dashboard is unused by the new engine and
+  awaits the M4 rewrite.
+- **Privileges:** TUN creation requires root / CAP_NET_ADMIN.

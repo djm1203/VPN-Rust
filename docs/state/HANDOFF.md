@@ -14,77 +14,66 @@ author: Derek Martinez
 
 ## Where We Stopped
 
-This session **committed to the production-direction pivot** and documented it. VPN-Rust is going
-from a learning prototype to production-ready personal software: a **QUIC/UDP point-to-point VPN**
-between machines the operator owns (one Linux server + Linux/macOS/Windows clients), authenticated
-by **pinned keypairs** (no CA/PKI), driven from a **TUI control dashboard**.
+This session committed to the production pivot **and executed M0, M1, and most of M2**. VPN-Rust is
+now a **QUIC/UDP point-to-point VPN**: `engine::{run_server,run_client}` pump IP packets between a
+cross-platform `TunDevice` (`tun-rs`) and QUIC datagrams (`quinn`), with a versioned control
+handshake, QUIC keep-alive, client reconnect, and **pinned-certificate** authentication. The legacy
+TLS-over-TCP stack is deleted.
 
-- The core planning docs are rewritten to this direction: `docs/planning/BACKLOG.md`,
-  `docs/planning/EXECUTION_PLAN.md` (milestones M0–M5), `docs/state/DECISIONS.md` (D-10…D-18), and
-  `docs/architecture/ARCHITECTURE.md`. The derivative docs (STATUS, HANDOFF, RISKS,
-  OPEN_QUESTIONS, PRD, CAPABILITIES) are aligned to them.
-- The **framework governance files** (`docs/governance/`, `docs/process/`, and other BEACON
-  scaffolding) remain as pre-populated boilerplate and still need project-specific review.
-- Nothing committed this session (per commit policy, commit only when explicitly asked).
-
-Code-wise, the project is unchanged: the v0.1.0 prototype (Phases 1-4) is implemented (see
-STATUS.md). The build succeeds on Linux and **fails to compile on Windows** (the current dev host)
-due to Linux-only TUN code, so `cargo test` cannot run here.
-
-**The next session starts M0 (Foundation & unblock).**
+- **The crate now builds natively on Windows** (was 4 compile errors at session start) and on
+  Linux; a WSL Ubuntu path runs `cargo build`/`test`/`clippy`/`fmt`.
+- Committed in clean increments (see `git log`): docs+CI, tracing+thiserror, QUIC spike, control
+  handshake, TunDevice, engine+identity, binary rewire + legacy removal, cert-SAN fix.
+- **Verified:** 17 unit + 2 loopback integration + 2 doc tests green; `clippy -D warnings` + `fmt`
+  clean; the real binary generates its identity and binds the QUIC endpoint (TUN creation is
+  root-gated, so full packet flow is not yet exercised here — no passwordless sudo in WSL).
 
 ## What's Next
 
-**M0 — Foundation & unblock (do these in order):**
+Pick up at the **M2/M3 remainder**, then M4/M5:
 
-1. **Establish a Linux/WSL build + test path FIRST** — the crate cannot compile on this Windows
-   host, so nothing else can be verified until there is a place `cargo build`/`test` runs.
-2. **CI matrix + gates** — multi-OS CI with clippy, `cargo fmt --check`, and `cargo audit`.
-3. **Root-free loopback integration-test harness** — exercise networking without root /
-   CAP_NET_ADMIN.
-4. **Migrate `log` → `tracing`** (D-14).
-5. **Introduce `thiserror` error seams** (D-15) and the trait seams (`Transport`, `TunDevice`,
-   `NetConfigurator`, D-16).
-
-**Then M1 — QUIC transport core:** add the `Transport` trait and a `quinn` implementation (IP
-packets over QUIC datagrams + a versioned reliable control stream); **this deletes `tls.rs`** and
-the length-prefixed TCP protocol.
-
-Later: M2 cross-platform TUN + `NetConfigurator`; M3 pinned-key hardening; M4 TUI dashboard; M5
-release readiness.
+1. **`NetConfigurator` (M2, B-020–022):** trait for address/route/NAT/DNS with rollback; Linux impl
+   wrapping the existing `net::route`/`net::security`; macOS/Windows impls. Wire server NAT + client
+   routes into the engine. Add the inner-MTU/PMTU clamp (B-016).
+2. **Security hardening (M3):** `keygen` CLI subcommand; SPKI-fingerprint pinning + fingerprint
+   display (TOFU); `zeroize` private keys; config validation.
+3. **M4 — TUI control dashboard:** ratatui 0.25→0.29; event-driven cockpit (connect/disconnect,
+   live throughput graphs, RTT, peer/route panels, log viewer, keybindings, theming) fed by an
+   engine stats/event channel.
+4. **M5 — Release readiness:** metrics, `--daemon` + systemd unit, per-OS packaging, docs, SemVer.
+5. **On-target verification:** run the tunnel end-to-end with root on Linux (or netns); validate
+   Windows (wintun) and macOS (utun) clients on real hosts.
 
 ## Quick Reference
 
+Build/test run on the WSL Ubuntu path (this Windows host can't create TUN devices):
+
 ```bash
-# Build
-cargo build
-cargo build --release
-
-# Test / lint / format (test requires Linux)
+# In WSL Ubuntu, from the repo (on /mnt/c or a native clone):
+cargo build --all-targets
 cargo test
-cargo clippy
-cargo fmt
+cargo clippy --all-targets -- -D warnings
+cargo fmt --check
 
-# Run the VPN (Linux, requires root for TUN)
-sudo cargo run --bin server
-sudo cargo run --bin client
+# Native Windows build also works now:
+#   cargo build            (from PowerShell)
 
-# Certificates and cleanup
-./gen_certs.sh        # generate self-signed dev certs
-./cleanup_vpn.sh      # tear down TUN interfaces / processes
+# Run the VPN (Linux, requires root for TUN). Server generates its identity on
+# first run at certs/server-cert.der — pin that file on the client:
+sudo ./target/debug/vpn-rust server --bind 0.0.0.0 --port 4433
+sudo ./target/debug/vpn-rust client --server <host> --server-cert server-cert.der
 ```
 
 ## What to Watch
 
-- **Cannot compile/verify on this Windows host until M0/M2** — the current dev host cannot build
-  or test; do all work on the Linux/WSL path M0 establishes. Cross-platform client builds land in
-  M2 (`TunDevice` / `tun-rs`).
-- **The QUIC rewrite deletes `tls.rs`** — M1 removes the TLS-over-TCP transport and the
-  length-prefixed framing entirely; don't invest in that code.
-- **Dependency majors upgrade *within* milestones** (D-18) — rustls 0.21→0.23 + drop
-  webpki-roots with QUIC (M1), `tun` 0.6→`tun-rs` with cross-platform TUN (M2), ratatui 0.25→0.29
-  with the TUI (M4). Don't do a big-bang bump.
-- **Minimal test coverage** — networking code is largely unguarded until the M0 loopback harness
-  exists; verify manually on Linux until then.
-- **Self-signed certificates are prototype-only** — superseded by pinned keypairs in M3; do not
-  treat the current trust model as production-secure.
+- **Full tunnel not yet exercised end-to-end** — needs root (no passwordless sudo in the dev WSL);
+  use `sudo` on a real Linux box or network namespaces. The QUIC/handshake/identity paths are
+  covered by loopback integration tests and a binary smoke test.
+- **No routing/NAT yet** — packets move between the two TUNs, but host routes and server NAT are
+  not configured until the `NetConfigurator` work (M2, B-020–022). The Linux `route`/`security`
+  modules are present but unwired (gated `cfg(unix)`).
+- **Pinning is cert-exact, not SPKI-fingerprint yet** — refine in M3 (with fingerprint display /
+  TOFU and `zeroize`). Don't treat the current model as final.
+- **TUI is stale** — the prototype ratatui 0.25 dashboard is unused by the engine; rebuild in M4.
+- **Windows/macOS runtime unverified** — the crate compiles for both, but wintun (needs
+  `wintun.dll`) and utun have not been run on real hosts.

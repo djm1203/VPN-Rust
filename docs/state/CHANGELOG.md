@@ -12,6 +12,25 @@ author: Derek Martinez
 
 # Changelog
 
+## 2026-07-14
+
+- **M0 — Foundation:** established a Linux/WSL build+test path (WSL Ubuntu, Rust 1.95); hardened CI
+  (rustfmt + `clippy -D warnings` + `cargo audit` + cross-platform build matrix); migrated
+  `log`/`env_logger` → `tracing`; added `config::ConfigError` (`thiserror`).
+- **M1 — QUIC transport core:** added `transport::Transport` seam + `quinn` `QuicTransport`
+  (tunneled packets as QUIC datagrams); versioned control-stream handshake with parameter
+  negotiation (`transport::control`, `postcard`); QUIC keep-alive + idle-timeout; client reconnect
+  with exponential backoff. Removed the TLS-over-TCP path (`net/tls.rs`, `net/tun.rs`,
+  `net/clients.rs`, old bins) and dropped rustls 0.21 / tokio-rustls / webpki-roots /
+  rustls-pemfile / x509-parser / tun 0.6 / winapi.
+- **M2 — cross-platform TUN:** `net::device::{TunDevice, SystemTun}` via `tun-rs`; **the crate now
+  builds natively on Windows** (was failing at session start). `engine::{run_server,run_client}`
+  wire the TUN to QUIC datagrams (single-peer P2P); multi-client scaffolding removed.
+- **M3 — security (partial):** `crypto::NodeIdentity` load-or-generate self-signed identity;
+  QUIC client pins the peer certificate; `certs/*.{der,key,crt,pem}` gitignored.
+- Tests: 17 unit + 2 loopback integration (QUIC echo, control handshake) + 2 doc, green on Linux;
+  clippy/fmt clean; native Windows `cargo build` succeeds. Committed in clean increments.
+
 ## 2026-07-13
 
 - Populated all BEACON framework documentation with real VPN-Rust architecture and current
