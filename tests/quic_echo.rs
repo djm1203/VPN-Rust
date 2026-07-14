@@ -6,7 +6,7 @@
 use std::net::{Ipv4Addr, SocketAddr};
 
 use bytes::Bytes;
-use vpn_rust::transport::quic::{dev_client_endpoint, dev_server_endpoint};
+use vpn_rust::transport::quic::{client_endpoint, dev_server_endpoint};
 use vpn_rust::transport::{QuicTransport, Transport};
 
 #[tokio::test]
@@ -36,8 +36,8 @@ async fn quic_datagram_round_trip() -> anyhow::Result<()> {
     });
 
     // Client: connect, send a datagram, expect the same bytes echoed back.
-    let client_endpoint = dev_client_endpoint(server_cert)?;
-    let connection = client_endpoint.connect(server_addr, "localhost")?.await?;
+    let endpoint = client_endpoint(server_cert)?;
+    let connection = endpoint.connect(server_addr, "localhost")?.await?;
     let client = QuicTransport::new(connection);
 
     let payload = Bytes::from_static(b"hello quic vpn");

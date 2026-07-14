@@ -28,6 +28,8 @@
 pub mod cli;
 pub mod config;
 pub mod constants;
+pub mod crypto;
+pub mod engine;
 pub mod net;
 pub mod transport;
 pub mod tui;

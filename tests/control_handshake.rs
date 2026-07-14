@@ -7,7 +7,7 @@
 use std::net::{Ipv4Addr, SocketAddr};
 
 use vpn_rust::transport::control::{client_handshake, server_handshake};
-use vpn_rust::transport::quic::{dev_client_endpoint, dev_server_endpoint};
+use vpn_rust::transport::quic::{client_endpoint, dev_server_endpoint};
 use vpn_rust::transport::SessionParams;
 
 #[tokio::test]
@@ -38,8 +38,8 @@ async fn control_handshake_negotiates_params() -> anyhow::Result<()> {
         mtu: 1500,
         keepalive_secs: 10,
     };
-    let client_endpoint = dev_client_endpoint(server_cert)?;
-    let connection = client_endpoint.connect(server_addr, "localhost")?.await?;
+    let endpoint = client_endpoint(server_cert)?;
+    let connection = endpoint.connect(server_addr, "localhost")?.await?;
     let negotiated = client_handshake(&connection, client_request).await?;
 
     // Both peers should converge on the smaller values.
