@@ -39,6 +39,7 @@ async fn main() -> Result<()> {
         Commands::Server(args) => {
             let params = ServerParams {
                 bind: resolve_addr(&args.bind, args.port)?,
+                server_name: args.server_name,
                 tun_name: args.tun_name,
                 tun_ip: args.tun_ip.parse().context("invalid --tun-ip")?,
                 prefix: args.prefix,

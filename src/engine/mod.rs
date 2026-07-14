@@ -34,6 +34,9 @@ use crate::transport::{QuicTransport, Transport};
 pub struct ServerParams {
     /// UDP address to bind the QUIC endpoint to.
     pub bind: SocketAddr,
+    /// Name placed in the generated certificate's SAN (must match the client's
+    /// `--server-name`).
+    pub server_name: String,
     /// TUN interface name.
     pub tun_name: String,
     /// Server IP within the VPN subnet.
@@ -72,8 +75,10 @@ pub struct ClientParams {
 
 /// Run the VPN server: listen for a peer and tunnel packets.
 pub async fn run_server(params: ServerParams) -> Result<()> {
+    // The certificate's SAN must match the client's `--server-name` (default
+    // "localhost"). A configurable SAN for non-local hostnames is future work.
     let identity =
-        NodeIdentity::load_or_generate(&params.cert_path, &params.key_path, "vpn-rust-server")
+        NodeIdentity::load_or_generate(&params.cert_path, &params.key_path, &params.server_name)
             .context("failed to load or generate server identity")?;
 
     let endpoint =

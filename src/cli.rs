@@ -47,6 +47,11 @@ pub struct ServerArgs {
     #[arg(short, long, default_value = "4433")]
     pub port: u16,
 
+    /// Name embedded in the generated certificate's SAN (clients must connect
+    /// with a matching `--server-name`)
+    #[arg(long, default_value = "localhost")]
+    pub server_name: String,
+
     /// TUN interface name
     #[arg(long, default_value = "rustvpn0")]
     pub tun_name: String,
@@ -145,6 +150,7 @@ mod tests {
         Commands::Server(ServerArgs {
             bind: "0.0.0.0".to_string(),
             port: 4433,
+            server_name: "localhost".to_string(),
             tun_name: "rustvpn0".to_string(),
             tun_ip: "10.8.0.1".to_string(),
             prefix: 30,
