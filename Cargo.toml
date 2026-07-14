@@ -28,6 +28,9 @@ quinn = "0.11"
 rcgen = "0.13"
 bytes = "1"
 postcard = { version = "1", features = ["use-std"] }
+# Cross-platform async TUN (Linux / macOS utun / Windows wintun) — replaces the
+# legacy Linux-only tun 0.6 + AsyncFd path (decision D-12).
+tun-rs = { version = "2", features = ["async"] }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.9", features = ["iphlpapi"] }

@@ -68,8 +68,8 @@ When an item ships: `Shipped — <commit> — <date>`.
 
 | ID | Tag | Title | Priority | Status |
 |----|-----|-------|----------|--------|
-| B-017 | [CORE] M2 | `TunDevice` trait abstracting the platform TUN backend | HIGH | Pending |
-| B-018 | [CORE] M2 | TUN backends via `tun-rs`: Linux, macOS (utun), Windows (wintun) | HIGH | Pending |
+| B-017 | [CORE] M2 | `TunDevice` trait abstracting the platform TUN backend | HIGH | Done (local) — `net::device::{TunDevice, SystemTun}` |
+| B-018 | [CORE] M2 | TUN backends via `tun-rs`: Linux, macOS (utun), Windows (wintun) | HIGH | In Progress — `tun-rs` backend compiles on Linux; Windows/macOS compile + runtime verification pending |
 | B-019 | [CORE] M2 | **Verify Windows client actually compiles and runs** (closes the #1 blocker) | HIGH | Pending |
 | B-020 | [CORE] M2 | `NetConfigurator` trait for address/route/NAT/DNS, with guaranteed rollback on drop/crash | HIGH | Pending |
 | B-021 | [CORE] M2 | Linux `NetConfigurator` via netlink (`rtnetlink`) or wrapped `ip`, behind the trait | MED | Pending |
