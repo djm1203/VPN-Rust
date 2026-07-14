@@ -57,7 +57,7 @@ When an item ships: `Shipped — <commit> — <date>`.
 | B-010 | [CORE] M1 | Define a `Transport` trait to decouple the engine from the wire implementation | HIGH | Done (local) — `transport::Transport` (send/recv datagram + max size) |
 | B-011 | [CORE] M1 | Implement the `Transport` over `quinn` (QUIC/UDP; pulls modern rustls stack) | HIGH | In Progress — `QuicTransport` + dev endpoint helpers done and tested; engine wiring + real auth pending |
 | B-012 | [CORE] M1 | Carry tunneled IP packets over **QUIC datagrams** (unreliable — no reliability-over-reliability) | HIGH | In Progress — datagram path proven in the loopback test; TUN↔datagram wiring pending (needs M2) |
-| B-013 | [CORE] M1 | **Control stream**: versioned handshake (protocol version, MTU/keepalive negotiation) | HIGH | Pending |
+| B-013 | [CORE] M1 | **Control stream**: versioned handshake (protocol version, MTU/keepalive negotiation) | HIGH | Done (local) — `transport::control` (ClientHello/ServerHello, param negotiation); `tests/control_handshake.rs` |
 | B-014 | [CORE] M1 | Port keepalive + reconnect (exp backoff) onto QUIC timers / 0-RTT resumption | MED | Pending |
 | B-015 | [CORE] M1 | Remove length-prefixed TLS-over-TCP protocol, echo path, and dead `tls.rs` code | HIGH | Pending |
 | B-016 | [CORE] M1 | Path MTU handling for QUIC-over-UDP (avoid fragmentation; clamp inner MTU) | MED | Pending |

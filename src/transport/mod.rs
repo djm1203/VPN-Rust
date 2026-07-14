@@ -13,11 +13,13 @@
 //! the concrete wire protocol, so it can be tested against a loopback QUIC pair
 //! without a TUN device or root privileges.
 
+pub mod control;
 pub mod quic;
 
 use anyhow::Result;
 use bytes::Bytes;
 
+pub use control::{ClientHello, ServerHello, SessionParams, PROTOCOL_VERSION};
 pub use quic::QuicTransport;
 
 /// A bidirectional, best-effort datagram channel between two VPN peers.
