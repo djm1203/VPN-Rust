@@ -349,7 +349,8 @@ impl ClientManager {
         };
 
         // Create client connection
-        let connection = ClientConnection::new(id.clone(), socket_addr, vpn_ip, authenticated, cert_cn);
+        let connection =
+            ClientConnection::new(id.clone(), socket_addr, vpn_ip, authenticated, cert_cn);
 
         // Store in maps
         {

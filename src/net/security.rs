@@ -136,7 +136,9 @@ fn restore_iptables_rules(rules: &str) -> Result<()> {
             .context("Failed to write rules to iptables-restore")?;
     }
 
-    let status = child.wait().context("Failed to wait for iptables-restore")?;
+    let status = child
+        .wait()
+        .context("Failed to wait for iptables-restore")?;
     if !status.success() {
         anyhow::bail!("iptables-restore failed");
     }
@@ -183,14 +185,7 @@ fn apply_kill_switch_rules(
     ])?;
 
     // Allow all traffic through VPN interface
-    run_iptables(&[
-        "-A",
-        "VPN_KILLSWITCH",
-        "-o",
-        vpn_interface,
-        "-j",
-        "ACCEPT",
-    ])?;
+    run_iptables(&["-A", "VPN_KILLSWITCH", "-o", vpn_interface, "-j", "ACCEPT"])?;
 
     // Allow DHCP (for local network)
     run_iptables(&[
@@ -391,27 +386,9 @@ fn apply_dns_leak_rules(vpn_interface: &str) -> Result<()> {
     ])?;
 
     // Block other DNS traffic
-    run_iptables(&[
-        "-A",
-        "VPN_DNS",
-        "-p",
-        "udp",
-        "--dport",
-        "53",
-        "-j",
-        "DROP",
-    ])?;
+    run_iptables(&["-A", "VPN_DNS", "-p", "udp", "--dport", "53", "-j", "DROP"])?;
 
-    run_iptables(&[
-        "-A",
-        "VPN_DNS",
-        "-p",
-        "tcp",
-        "--dport",
-        "53",
-        "-j",
-        "DROP",
-    ])?;
+    run_iptables(&["-A", "VPN_DNS", "-p", "tcp", "--dport", "53", "-j", "DROP"])?;
 
     // Insert into OUTPUT chain
     run_iptables(&["-I", "OUTPUT", "1", "-j", "VPN_DNS"])?;

@@ -1,0 +1,31 @@
+:root {
+  --color-highway-yellow: #F5C400;
+  --color-highway-amber: #E8A000;
+  --color-highway-dark: #1A1A1A;
+  --color-highway-charcoal: #2C2C2C;
+  --color-highway-mid: #9AA5B4;
+  --color-highway-light: #F9F9F9;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+body {
+  font-family: "Inter", system-ui, sans-serif;
+  color: var(--color-highway-charcoal);
+  background-color: var(--color-highway-light);
+}
+
+a {
+  color: var(--color-highway-dark);
+}
+
+.brand-accent {
+  color: var(--color-highway-yellow);
+}
+
+.brand-bg-dark {
+  background-color: var(--color-highway-dark);
+  color: var(--color-highway-light);
+}

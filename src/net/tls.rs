@@ -414,8 +414,14 @@ pub async fn connect_tls_with_config(
 /// # Returns
 ///
 /// A `TlsServer` containing both the TCP listener and TLS acceptor.
-pub async fn start_tls_server_with_config(addr: &str, config: &ServerTlsConfig) -> Result<TlsServer> {
-    info!("Starting TLS server on {} (mTLS: {})", addr, config.require_client_auth);
+pub async fn start_tls_server_with_config(
+    addr: &str,
+    config: &ServerTlsConfig,
+) -> Result<TlsServer> {
+    info!(
+        "Starting TLS server on {} (mTLS: {})",
+        addr, config.require_client_auth
+    );
 
     // Load server certificate chain
     let certs = load_certs(&config.cert_path)
@@ -430,7 +436,9 @@ pub async fn start_tls_server_with_config(addr: &str, config: &ServerTlsConfig) 
     // Build server config with or without client auth
     let server_config = if config.require_client_auth {
         // mTLS: Require client certificates
-        let ca_path = config.ca_cert_path.as_ref()
+        let ca_path = config
+            .ca_cert_path
+            .as_ref()
             .ok_or_else(|| anyhow::anyhow!("CA certificate required for client authentication"))?;
 
         let mut client_root_store = RootCertStore::empty();
@@ -488,7 +496,8 @@ pub fn get_client_cert_cn(
                     // Get the subject and find the CN
                     for rdn in parsed_cert.subject().iter() {
                         for attr in rdn.iter() {
-                            if attr.attr_type() == &x509_parser::oid_registry::OID_X509_COMMON_NAME {
+                            if attr.attr_type() == &x509_parser::oid_registry::OID_X509_COMMON_NAME
+                            {
                                 if let Ok(cn) = attr.attr_value().as_str() {
                                     return Some(cn.to_string());
                                 }

@@ -15,11 +15,11 @@ pub fn render(frame: &mut Frame, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Title bar
-            Constraint::Length(7),  // Status panel
-            Constraint::Length(9),  // Statistics panel
-            Constraint::Min(10),    // Log panel
-            Constraint::Length(1),  // Help bar
+            Constraint::Length(3), // Title bar
+            Constraint::Length(7), // Status panel
+            Constraint::Length(9), // Statistics panel
+            Constraint::Min(10),   // Log panel
+            Constraint::Length(1), // Help bar
         ])
         .split(frame.size());
 
@@ -93,15 +93,16 @@ fn render_status(frame: &mut Frame, area: Rect, app: &App) {
     // Duration line
     let duration_line = Line::from(vec![
         Span::styled("Duration: ", Style::default().fg(Color::Gray)),
-        Span::styled(
-            app.connection_duration(),
-            Style::default().fg(Color::White),
-        ),
+        Span::styled(app.connection_duration(), Style::default().fg(Color::White)),
     ]);
     frame.render_widget(Paragraph::new(duration_line), status_chunks[1]);
 
     // Peer info line
-    let peer_label = if app.is_server { "Listening: " } else { "Server: " };
+    let peer_label = if app.is_server {
+        "Listening: "
+    } else {
+        "Server: "
+    };
     let peer_line = Line::from(vec![
         Span::styled(peer_label, Style::default().fg(Color::Gray)),
         Span::styled(&app.peer_info, Style::default().fg(Color::White)),
@@ -164,19 +165,13 @@ fn render_stats(frame: &mut Frame, area: Rect, app: &App) {
 
     let sent_bytes = Paragraph::new(Line::from(vec![
         Span::styled("Bytes: ", Style::default().fg(Color::Gray)),
-        Span::styled(
-            format_bytes(bytes_sent),
-            Style::default().fg(Color::White),
-        ),
+        Span::styled(format_bytes(bytes_sent), Style::default().fg(Color::White)),
     ]));
     frame.render_widget(sent_bytes, sent_chunks[2]);
 
     let sent_packets = Paragraph::new(Line::from(vec![
         Span::styled("Packets: ", Style::default().fg(Color::Gray)),
-        Span::styled(
-            packets_sent.to_string(),
-            Style::default().fg(Color::White),
-        ),
+        Span::styled(packets_sent.to_string(), Style::default().fg(Color::White)),
     ]));
     frame.render_widget(sent_packets, sent_chunks[3]);
 
@@ -205,19 +200,13 @@ fn render_stats(frame: &mut Frame, area: Rect, app: &App) {
 
     let recv_bytes = Paragraph::new(Line::from(vec![
         Span::styled("Bytes: ", Style::default().fg(Color::Gray)),
-        Span::styled(
-            format_bytes(bytes_recv),
-            Style::default().fg(Color::White),
-        ),
+        Span::styled(format_bytes(bytes_recv), Style::default().fg(Color::White)),
     ]));
     frame.render_widget(recv_bytes, recv_chunks[2]);
 
     let recv_packets = Paragraph::new(Line::from(vec![
         Span::styled("Packets: ", Style::default().fg(Color::Gray)),
-        Span::styled(
-            packets_recv.to_string(),
-            Style::default().fg(Color::White),
-        ),
+        Span::styled(packets_recv.to_string(), Style::default().fg(Color::White)),
     ]));
     frame.render_widget(recv_packets, recv_chunks[3]);
 }

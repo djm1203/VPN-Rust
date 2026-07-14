@@ -1,0 +1,32 @@
+---
+title: ".windsurfrules"
+project: project
+classification: high
+created: 2026-06-06T03:40:25Z
+updated: 2026-06-06T03:40:25Z
+product_id: project
+project_id: project
+file_kind: WindsurfRules
+author: 
+---
+
+# Windsurf Rules — BEACON Framework
+
+# Read AGENTS.md for universal governance.
+
+## Session Protocol
+
+Complete resume protocol before coding. See CLAUDE.md or AGENTS.md.
+
+## Critical Rules
+
+- Read before write (R-3.1)
+- No invented APIs (R-1.1)
+- No secrets in code (R-8.1)
+- No push without instruction (R-10.2)
+- Never commit unless told to; when told, no agent attribution tags and keep the message concise (R-10.5)
+
+## Build
+
+# TODO: Add build commands
+# TODO: Add test commands

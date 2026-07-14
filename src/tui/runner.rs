@@ -47,7 +47,9 @@ impl Terminal {
         disable_raw_mode().context("Failed to disable raw mode")?;
         execute!(self.terminal.backend_mut(), LeaveAlternateScreen)
             .context("Failed to leave alternate screen")?;
-        self.terminal.show_cursor().context("Failed to show cursor")?;
+        self.terminal
+            .show_cursor()
+            .context("Failed to show cursor")?;
         Ok(())
     }
 }

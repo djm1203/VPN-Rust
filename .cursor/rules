@@ -1,0 +1,54 @@
+---
+title: ".cursor/rules"
+project: project
+classification: high
+created: 2026-06-06T03:40:25Z
+updated: 2026-06-06T03:40:25Z
+---
+
+# Cursor Rules — BEACON Framework
+
+Read `AGENTS.md` for universal governance rules that apply to all AI coding agents.
+
+## Session Protocol
+
+Before writing any code, complete the resume protocol:
+1. Read `CLAUDE.md` (or `AGENTS.md`)
+2. Read `docs/state/STATUS.md`, `docs/state/HANDOFF.md`, `docs/state/OPEN_QUESTIONS.md`
+3. Read `docs/planning/BACKLOG.md`
+4. Run `git status` — working tree must be clean
+5. Verify tests pass
+6. State session goal, then output:
+   ```
+   BEACON SESSION ACTIVE — Resume protocol complete. Session goal: [goal]
+   ```
+
+Before ending any session, complete the close protocol and output:
+```
+BEACON SESSION CLOSED — All state files updated. Close protocol complete.
+```
+
+## Critical Rules
+
+- **R-3.1**: Read before write — read a file before editing it
+- **R-1.1 / R-1.2**: No invented APIs or fabricated file paths
+- **R-8.1**: No hardcoded secrets, credentials, or tokens
+- **R-10.2**: No push to remote without explicit instruction
+- **R-10.5**: Never commit unless told to. When told, use no agent attribution (no `Co-Authored-By`/"Generated with"/"written by") and keep the message to a concise sentence or two
+- **R-11.3**: No self-approval of your own changes
+- **R-27.1**: Tag the backlog item with affected solution(s) before writing any code
+- **R-27.2**: Grep for all callers before modifying any existing method, class, or constant
+- **R-27.4**: Check for framework callbacks and concerns before modifying models or services
+- **R-29.1**: Any feature touching status, flags, scores, or eligibility requires a business impact assessment — run the numbers on existing records before calling it done
+- **R-29.2**: If >20% of records are affected on day one, stop — a rollout plan is required before the ticket closes
+- **R-30.1**: Background jobs must be idempotent — safe to retry without corrupting data
+- **R-31.2**: High rollout risk features must be validated against production-scale data before closing
+- **R-33.1**: New queries on large tables need EXPLAIN ANALYZE before merging
+- **R-34.1**: Any SEV-1/SEV-2 incident must produce a BEACON rule change before the post-mortem is closed
+
+## Build
+
+```bash
+# TODO: Add build commands
+# TODO: Add test commands
+```
