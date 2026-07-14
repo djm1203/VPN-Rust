@@ -42,7 +42,7 @@ When an item ships: `Shipped — <commit> — <date>`.
 | B-002 | [CORE] M0 | CI: multi-OS build matrix (ubuntu + windows + macos) | HIGH | In Progress — matrix authored in ci.yml (win/macos non-blocking until M2); pending push to verify |
 | B-003 | [CORE] M0 | CI gates: `cargo clippy -D warnings`, `cargo fmt --check`, `cargo test` | HIGH | In Progress — `cargo fmt` applied, gates authored; verified locally; pending push |
 | B-004 | [CORE] M0 | CI: `cargo-deny` / `cargo-audit` for advisories + license/dup checks | MED | In Progress — `cargo-audit` job authored; pending push to verify |
-| B-005 | [CORE] M0 | Test harness: loopback integration tests that need no root (transport/crypto without a real TUN) | HIGH | Pending |
+| B-005 | [CORE] M0 | Test harness: loopback integration tests that need no root (transport/crypto without a real TUN) | HIGH | Done (local) — `tests/quic_echo.rs` round-trips a QUIC datagram over loopback, no root; first integration test |
 | B-006 | [CORE] M0 | Privileged/netns CI job for real-TUN end-to-end tests | MED | Pending |
 | B-007 | [CORE] M0 | Migrate logging `log` + `env_logger` → `tracing` + `tracing-subscriber` | MED | Done (local) — verified on Linux (build/clippy `-D warnings`/tests green); pending commit |
 | B-008 | [CORE] M0 | Introduce `thiserror` library error types at module boundaries; keep `anyhow` at the binary boundary | MED | In Progress — `ConfigError` pattern established on the stable `config` module; `net/` modules stay on anyhow until rewritten (D-18) |
@@ -54,9 +54,9 @@ When an item ships: `Shipped — <commit> — <date>`.
 
 | ID | Tag | Title | Priority | Status |
 |----|-----|-------|----------|--------|
-| B-010 | [CORE] M1 | Define a `Transport` trait to decouple the engine from the wire implementation | HIGH | Pending |
-| B-011 | [CORE] M1 | Implement the `Transport` over `quinn` (QUIC/UDP; pulls modern rustls stack) | HIGH | Pending |
-| B-012 | [CORE] M1 | Carry tunneled IP packets over **QUIC datagrams** (unreliable — no reliability-over-reliability) | HIGH | Pending |
+| B-010 | [CORE] M1 | Define a `Transport` trait to decouple the engine from the wire implementation | HIGH | Done (local) — `transport::Transport` (send/recv datagram + max size) |
+| B-011 | [CORE] M1 | Implement the `Transport` over `quinn` (QUIC/UDP; pulls modern rustls stack) | HIGH | In Progress — `QuicTransport` + dev endpoint helpers done and tested; engine wiring + real auth pending |
+| B-012 | [CORE] M1 | Carry tunneled IP packets over **QUIC datagrams** (unreliable — no reliability-over-reliability) | HIGH | In Progress — datagram path proven in the loopback test; TUN↔datagram wiring pending (needs M2) |
 | B-013 | [CORE] M1 | **Control stream**: versioned handshake (protocol version, MTU/keepalive negotiation) | HIGH | Pending |
 | B-014 | [CORE] M1 | Port keepalive + reconnect (exp backoff) onto QUIC timers / 0-RTT resumption | MED | Pending |
 | B-015 | [CORE] M1 | Remove length-prefixed TLS-over-TCP protocol, echo path, and dead `tls.rs` code | HIGH | Pending |

@@ -4,7 +4,7 @@
 //!
 //! This library provides the core components for building a VPN:
 //! - TUN interface management for packet capture/injection
-//! - TLS-based secure tunneling
+//! - Transport abstraction with a QUIC (`quinn`) implementation
 //! - Configuration file parsing (OpenVPN and TOML formats)
 //! - Command-line interface
 //!
@@ -29,4 +29,5 @@ pub mod cli;
 pub mod config;
 pub mod constants;
 pub mod net;
+pub mod transport;
 pub mod tui;
