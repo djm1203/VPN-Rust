@@ -24,7 +24,7 @@ use tracing::{info, warn};
 use crate::constants::{
     KEEPALIVE_INTERVAL_SECS, RECONNECT_INITIAL_DELAY_MS, RECONNECT_MAX_DELAY_MS,
 };
-use crate::crypto::NodeIdentity;
+use crate::crypto::{certificate_fingerprint, NodeIdentity};
 use crate::net::device::{SystemTun, TunDevice};
 use crate::transport::control::{client_handshake, server_handshake, SessionParams};
 use crate::transport::quic;
@@ -89,6 +89,7 @@ pub async fn run_server(params: ServerParams) -> Result<()> {
         "server certificate at {} — pin this on the client",
         params.cert_path.display()
     );
+    info!("server certificate fingerprint: {}", identity.fingerprint());
 
     let tun = Arc::new(
         SystemTun::create(&params.tun_name, params.tun_ip, params.prefix, params.mtu)
@@ -140,6 +141,10 @@ async fn handle_server_connection(
 pub async fn run_client(params: ClientParams) -> Result<()> {
     let server_cert = load_certificate(&params.server_cert_path)
         .context("failed to load pinned server certificate")?;
+    info!(
+        "pinned server fingerprint: {}",
+        certificate_fingerprint(&server_cert)
+    );
     let endpoint = quic::client_endpoint(server_cert).context("failed to start QUIC client")?;
 
     let tun = Arc::new(

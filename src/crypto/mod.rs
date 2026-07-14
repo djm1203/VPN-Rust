@@ -9,3 +9,18 @@
 pub mod identity;
 
 pub use identity::NodeIdentity;
+
+use quinn::rustls::pki_types::CertificateDer;
+use sha2::{Digest, Sha256};
+
+/// Compute a human-readable SHA-256 fingerprint of a DER-encoded certificate,
+/// formatted as `sha256:ab:cd:…` (lowercase hex, colon-separated).
+///
+/// Because the pinned peer is trusted by its exact certificate, this fingerprint
+/// uniquely identifies the pinned identity and can be compared out-of-band
+/// (trust-on-first-use) to confirm the operator pinned the right peer.
+pub fn certificate_fingerprint(cert: &CertificateDer<'_>) -> String {
+    let digest = Sha256::digest(cert.as_ref());
+    let hex: Vec<String> = digest.iter().map(|b| format!("{b:02x}")).collect();
+    format!("sha256:{}", hex.join(":"))
+}

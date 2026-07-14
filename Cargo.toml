@@ -23,6 +23,9 @@ bytes = "1"
 postcard = { version = "1", features = ["use-std"] }
 # Cross-platform async TUN (Linux / macOS utun / Windows wintun), decision D-12.
 tun-rs = { version = "2", features = ["async"] }
+# Security hardening (M3): key zeroization + certificate fingerprints.
+zeroize = "1"
+sha2 = "0.10"
 
 [dev-dependencies]
 tokio-test = "0.4.4"

@@ -34,6 +34,9 @@ pub enum Commands {
 
     /// Run the VPN client (connects to a server over QUIC/UDP)
     Client(ClientArgs),
+
+    /// Generate a self-signed node identity (certificate + private key)
+    Keygen(KeygenArgs),
 }
 
 /// Server command arguments
@@ -119,6 +122,27 @@ pub struct ClientArgs {
     /// Maximum reconnection attempts (0 = unlimited)
     #[arg(long, default_value = "0")]
     pub max_reconnects: u32,
+}
+
+/// `keygen` command arguments
+#[derive(Parser, Debug)]
+pub struct KeygenArgs {
+    /// Name to embed in the certificate SAN (clients connect with a matching
+    /// `--server-name`)
+    #[arg(long, default_value = "localhost")]
+    pub server_name: String,
+
+    /// Output path for the certificate (DER)
+    #[arg(long, default_value = "certs/server-cert.der")]
+    pub cert: PathBuf,
+
+    /// Output path for the private key (DER)
+    #[arg(long, default_value = "certs/server-key.der")]
+    pub key: PathBuf,
+
+    /// Overwrite existing certificate/key files
+    #[arg(long)]
+    pub force: bool,
 }
 
 impl Cli {

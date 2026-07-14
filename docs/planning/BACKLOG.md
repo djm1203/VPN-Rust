@@ -82,10 +82,10 @@ When an item ships: `Shipped — <commit> — <date>`.
 
 | ID | Tag | Title | Priority | Status |
 |----|-----|-------|----------|--------|
-| B-024 | [CORE] M3 | `vpn keygen` subcommand — generate node keypair/cert via `rcgen` (replaces `gen_certs.sh`) | HIGH | Done (local) — `crypto::NodeIdentity::load_or_generate` (DER); `keygen` CLI surface pending |
-| B-025 | [CORE] M3 | Custom rustls verifier: pin peer by **SPKI fingerprint**; drop webpki-roots/CA trust | HIGH | In Progress — pins peer by exact certificate (single-entry root store); webpki-roots dropped from QUIC path; SPKI-fingerprint refinement + display pending |
-| B-026 | [CORE] M3 | Fingerprint display + out-of-band verify (TOFU option) in CLI/TUI | MED | Pending |
-| B-027 | [CORE] M3 | `zeroize` private key material; key-file permission checks (chmod 600 / ACL) | MED | Pending |
+| B-024 | [CORE] M3 | `vpn keygen` subcommand — generate node keypair/cert via `rcgen` (replaces `gen_certs.sh`) | HIGH | Done (local) — `vpn-rust keygen` (+ `crypto::NodeIdentity`); verified via the binary |
+| B-025 | [CORE] M3 | Custom rustls verifier: pin peer by **SPKI fingerprint**; drop webpki-roots/CA trust | HIGH | Done (local) — pins peer by exact certificate (single-entry root store); webpki-roots dropped; SHA-256 cert fingerprint identifies the pin |
+| B-026 | [CORE] M3 | Fingerprint display + out-of-band verify (TOFU option) in CLI/TUI | MED | Done (local) — server + client + keygen log `sha256:…` fingerprints for out-of-band comparison |
+| B-027 | [CORE] M3 | `zeroize` private key material; key-file permission checks (chmod 600 / ACL) | MED | Done (local) — key held in `Zeroizing<Vec<u8>>`; key file `0600` on Unix |
 | B-028 | [CORE] M3 | Enforce no-payload logging in release builds; audit trace-level packet logging | MED | Pending |
 | B-029 | [CORE] M3 | Config validation with actionable errors; secrets never logged | MED | Pending |
 

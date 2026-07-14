@@ -5,14 +5,19 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use quinn::rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
+use zeroize::Zeroizing;
+
+use super::certificate_fingerprint;
 
 /// A node's DER-encoded certificate and private key.
 ///
 /// Identities are self-signed. A peer authenticates this node by pinning
-/// [`NodeIdentity::certificate`] (shared out-of-band).
+/// [`NodeIdentity::certificate`] (shared out-of-band; compare
+/// [`NodeIdentity::fingerprint`] to verify it). The PKCS#8 private key bytes are
+/// held in a [`Zeroizing`] buffer so they are wiped from memory on drop.
 pub struct NodeIdentity {
     cert: CertificateDer<'static>,
-    key: PrivateKeyDer<'static>,
+    key_pkcs8: Zeroizing<Vec<u8>>,
 }
 
 impl NodeIdentity {
@@ -22,10 +27,10 @@ impl NodeIdentity {
         let cert = rcgen::generate_simple_self_signed(vec![subject.to_string()])
             .context("failed to generate self-signed certificate")?;
         let cert_der = cert.cert.der().clone();
-        let key_der = PrivatePkcs8KeyDer::from(cert.key_pair.serialize_der());
+        let key_pkcs8 = Zeroizing::new(cert.key_pair.serialize_der());
         Ok(Self {
             cert: cert_der,
-            key: PrivateKeyDer::Pkcs8(key_der),
+            key_pkcs8,
         })
     }
 
@@ -37,12 +42,12 @@ impl NodeIdentity {
             .with_context(|| format!("failed to read private key '{}'", key_path.display()))?;
         Ok(Self {
             cert: CertificateDer::from(cert),
-            key: PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(key)),
+            key_pkcs8: Zeroizing::new(key),
         })
     }
 
     /// Load the identity from disk, or generate and persist a new one if either
-    /// file is missing (the `vpn keygen`-style bootstrap).
+    /// file is missing (the `keygen`-style bootstrap).
     pub fn load_or_generate(cert_path: &Path, key_path: &Path, subject: &str) -> Result<Self> {
         if cert_path.exists() && key_path.exists() {
             Self::load(cert_path, key_path)
@@ -64,7 +69,7 @@ impl NodeIdentity {
         }
         fs::write(cert_path, self.cert.as_ref())
             .with_context(|| format!("failed to write certificate '{}'", cert_path.display()))?;
-        fs::write(key_path, self.key.secret_der())
+        fs::write(key_path, self.key_pkcs8.as_slice())
             .with_context(|| format!("failed to write private key '{}'", key_path.display()))?;
         #[cfg(unix)]
         {
@@ -81,7 +86,13 @@ impl NodeIdentity {
 
     /// The DER-encoded private key.
     pub fn private_key(&self) -> PrivateKeyDer<'static> {
-        self.key.clone_key()
+        PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(self.key_pkcs8.to_vec()))
+    }
+
+    /// A human-readable SHA-256 fingerprint of the certificate, for out-of-band
+    /// verification (e.g. `sha256:ab:cd:...`).
+    pub fn fingerprint(&self) -> String {
+        certificate_fingerprint(&self.cert)
     }
 }
 
@@ -105,6 +116,8 @@ mod tests {
             generated.private_key().secret_der(),
             loaded.private_key().secret_der()
         );
+        // Fingerprint is stable across a save/load round trip.
+        assert_eq!(generated.fingerprint(), loaded.fingerprint());
 
         fs::remove_dir_all(&dir).ok();
         Ok(())

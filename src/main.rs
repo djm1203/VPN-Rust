@@ -22,6 +22,7 @@ use clap::Parser;
 use tracing::info;
 
 use vpn_rust::cli::{Cli, Commands};
+use vpn_rust::crypto::NodeIdentity;
 use vpn_rust::engine::{self, ClientParams, ServerParams};
 
 #[tokio::main]
@@ -62,6 +63,27 @@ async fn main() -> Result<()> {
                 max_reconnects: args.max_reconnects,
             };
             engine::run_client(params).await
+        }
+        Commands::Keygen(args) => {
+            if !args.force && (args.cert.exists() || args.key.exists()) {
+                anyhow::bail!(
+                    "refusing to overwrite existing '{}' / '{}' (use --force)",
+                    args.cert.display(),
+                    args.key.display()
+                );
+            }
+            let identity =
+                NodeIdentity::generate(&args.server_name).context("failed to generate identity")?;
+            identity
+                .save(&args.cert, &args.key)
+                .context("failed to save identity")?;
+            info!(
+                "generated identity: certificate '{}', key '{}'",
+                args.cert.display(),
+                args.key.display()
+            );
+            info!("fingerprint: {}", identity.fingerprint());
+            Ok(())
         }
     }
 }
