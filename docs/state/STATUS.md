@@ -12,7 +12,7 @@ author: Derek Martinez
 
 # Status — VPN-Rust
 
-**Last updated:** 2026-07-14 — QUIC engine landed; the crate now builds on Windows.
+**Last updated:** 2026-07-14 — M0–M3 complete; the core cross-platform QUIC VPN works; M4 (TUI) next.
 
 ## Project Snapshot
 
@@ -48,13 +48,14 @@ author: Derek Martinez
   client reconnect with exponential backoff; **legacy TLS-over-TCP path removed** (`net/tls.rs`,
   `net/tun.rs`, `net/clients.rs`, old bins deleted; rustls 0.21 / tokio-rustls / webpki-roots /
   rustls-pemfile / x509-parser / tun 0.6 / winapi dropped).
-- **M2 — cross-platform TUN (build unblocked):** `net::device::{TunDevice, SystemTun}` via
-  `tun-rs` (Linux/macOS/Windows); **the crate now compiles natively on Windows** (was 4 errors at
-  session start). `engine::{run_server,run_client}` pump packets between the TUN and QUIC
-  datagrams; single-peer P2P; multi-client scaffolding removed.
-- **M3 — security (partial):** `crypto::NodeIdentity` load-or-generate self-signed identity (DER;
-  `0600` key perms on Unix); QUIC client **pins the peer certificate**. Smoke-tested: the real
-  binary generates its identity and binds the QUIC endpoint (TUN step correctly root-gated).
+- **M2 — cross-platform TUN + net config (done):** `net::device::{TunDevice, SystemTun}` via
+  `tun-rs` (Linux/macOS/Windows) — **the crate compiles natively on Windows** (was 4 errors at
+  session start); `net::netcfg::NetConfigurator` (Linux NAT/route with rollback on drop; warn-noop
+  on other OSes) wired into the engine. `engine::{run_server,run_client}` pump packets between the
+  TUN and QUIC datagrams; single-peer P2P; multi-client scaffolding removed.
+- **M3 — security (done):** `crypto::NodeIdentity` (self-signed, load-or-generate, `Zeroizing`
+  key, `0600` perms); `vpn-rust keygen` subcommand; QUIC client **pins the peer certificate**;
+  SHA-256 fingerprints logged for out-of-band (TOFU) verification. Smoke-tested via the real binary.
 - **Verification:** 17 unit + 2 integration (loopback QUIC echo + control handshake) + 2 doc tests
   green on Linux; `clippy -D warnings` and `fmt` clean; native Windows `cargo build` succeeds.
 - **Production pivot committed (earlier this session):** committed to the production direction and rewrote
@@ -70,21 +71,20 @@ author: Derek Martinez
 
 ## In Flight
 
-- Finishing **M2** (`NetConfigurator` route/NAT/DNS abstraction) and **M3** (security hardening
-  refinements).
+- None — the core VPN (M0–M3) is complete and committed. **M4 (TUI dashboard) is the next
+  session's focus.**
 
 ## Next
 
-- **M2 remainder:** `NetConfigurator` trait + per-OS route/NAT/DNS with rollback (B-020–022),
-  wrapping the Linux `route`/`security` modules; inner-MTU/PMTU clamp (B-016).
-- **M3 remainder:** `keygen` CLI subcommand; SPKI-fingerprint pinning + fingerprint display (TOFU);
-  `zeroize` private keys; config validation.
-- **M4 — TUI control dashboard:** upgrade ratatui 0.25→0.29 and rebuild the TUI as an event-driven
-  control cockpit (connect/disconnect, live throughput graphs, peer/route panels, log viewer,
-  theming), fed by an engine stats/event channel.
+- **M4 — TUI control dashboard (next):** instrument the engine with a shared live-stats handle
+  (state, throughput, RTT, byte/packet counters); upgrade ratatui 0.25→0.29; build an event-driven
+  cockpit (state view, throughput sparklines, RTT gauge, peer/route panels, log viewer,
+  keybindings, dark theme + cyan accent); verify headlessly with ratatui `TestBackend`.
 - **M5 — Release readiness:** metrics, `--daemon` + systemd unit, per-OS packaging, docs, SemVer.
-- **On-target verification:** run the tunnel end-to-end with root on Linux and validate the Windows
-  (wintun) / macOS (utun) clients on real hosts.
+- **Remaining small items:** inner-MTU/PMTU clamp refinement (B-016); config validation (B-029);
+  native macOS/Windows `NetConfigurator` (B-022).
+- **On-target verification:** run the tunnel end-to-end with root on Linux (or netns), and validate
+  the Windows (wintun) / macOS (utun) clients on real hosts.
 
 ## Known Issues / Limitations
 

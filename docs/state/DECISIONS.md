@@ -248,3 +248,24 @@ than as a separate big-bang.
 **Consequences:** Upgrades are validated by the same tests that cover the rewrite; less churn on
 throwaway code (e.g. no need to port `tls.rs` to rustls 0.23 only to delete it for QUIC).
 
+## D-19: Implementation refinements during the M0–M3 build-out (2026-07-14)
+
+**Context:** Executing M0–M3 required concrete choices that refine (not reverse) earlier decisions.
+
+**Decision:** (a) Pin the peer by its **exact certificate** in a single-entry rustls root store,
+and identify/verify it with a **SHA-256 fingerprint of the certificate DER** (`sha256:…`) rather
+than an SPKI hash — functionally equivalent for exact-cert pinning and avoids re-adding an X.509
+parser. (b) Store node identities as **DER files** (not PEM) to avoid PEM-parsing dependency
+friction; private key bytes live in `Zeroizing<Vec<u8>>`. (c) The **`NetConfigurator`** Linux impl
+wraps `ip`/`iptables`/`sysctl` (netlink deferred) and is a **warn-noop on macOS/Windows** for now.
+(d) Default **inner MTU is 1300** to stay safely under the QUIC datagram size limit on typical
+paths. (e) The generated server certificate's SAN equals `--server-name` (default `localhost`) so
+the client's hostname check passes; a configurable SAN for arbitrary hostnames is future work.
+
+**Alternatives:** True SPKI-fingerprint pinning with a custom verifier; PEM storage; netlink-based
+routing; a fixed 1500 MTU.
+
+**Consequences:** A working, secure, cross-platform core with minimal dependencies. Follow-ups:
+SPKI-fingerprint pinning if key-rotation-without-re-pin is wanted (B-025 refinement); native
+macOS/Windows `NetConfigurator` (B-022); PMTU discovery (B-016); configurable cert SAN.
+

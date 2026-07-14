@@ -26,10 +26,17 @@ author: Derek Martinez
 - **M2 — cross-platform TUN:** `net::device::{TunDevice, SystemTun}` via `tun-rs`; **the crate now
   builds natively on Windows** (was failing at session start). `engine::{run_server,run_client}`
   wire the TUN to QUIC datagrams (single-peer P2P); multi-client scaffolding removed.
-- **M3 — security (partial):** `crypto::NodeIdentity` load-or-generate self-signed identity;
-  QUIC client pins the peer certificate; `certs/*.{der,key,crt,pem}` gitignored.
-- Tests: 17 unit + 2 loopback integration (QUIC echo, control handshake) + 2 doc, green on Linux;
-  clippy/fmt clean; native Windows `cargo build` succeeds. Committed in clean increments.
+- **M2 — network config:** `net::netcfg::NetConfigurator` abstracts host routing/NAT with rollback
+  on drop; `LinuxNetConfigurator` wraps `ip`/`iptables`/`sysctl` (warn-noop on other platforms),
+  wired into the engine (server NAT via `--nat-interface`, client subnet route).
+- **M3 — security (complete):** `crypto::NodeIdentity` (self-signed, load-or-generate, `Zeroizing`
+  key, `0600` perms); `vpn-rust keygen` subcommand; QUIC client pins the peer certificate; SHA-256
+  fingerprints logged for out-of-band (TOFU) verification; `certs/*.{der,key,crt,pem}` gitignored.
+- **Milestone status:** M0–M3 complete (the full cross-platform QUIC VPN core); **M4 (TUI) and M5
+  (release readiness) remain**.
+- Tests: 18 unit + 2 loopback integration (QUIC echo, control handshake) + 2 doc, green on Linux;
+  clippy `-D warnings` + fmt clean; native Windows `cargo build` succeeds. Committed in ~14 clean
+  increments.
 
 ## 2026-07-13
 

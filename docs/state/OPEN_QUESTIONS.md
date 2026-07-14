@@ -26,12 +26,12 @@ timeout and reconnect. Recorded here for history.
 
 **Blocking:** No
 **Target:** Derek Martinez
-**Status:** Open
+**Status:** Partially resolved
 
-MTU is currently hard-coded to 1500. With IP packets carried inside **QUIC datagrams** (D-11),
-what inner-MTU should the TUN advertise, and how should the tunnel handle path-MTU discovery for
-the QUIC datagram limit (which varies with the underlying path) to avoid silent drops or
-fragmentation? Resolve during M1 (QUIC transport).
+Inner MTU is now **configurable, default 1300** (chosen to stay under the QUIC datagram limit on
+typical paths), and the control handshake negotiates the smaller of the two peers' MTUs. Still
+open: proper **path-MTU discovery** for the QUIC datagram limit and clamping to it, so oversized
+packets are handled rather than dropped-with-a-warning (tracked as B-016).
 
 ## OQ-3: UDP transport for lower latency
 
@@ -132,12 +132,11 @@ and the trait seams (D-16)? Tracked as backlog item B-009; decide before the sea
 
 **Blocking:** No
 **Target:** Derek Martinez
-**Status:** Open
+**Status:** Resolved (for now)
 
-For the Linux `NetConfigurator` implementation (D-16), should we speak **netlink** directly (e.g.
-`rtnetlink`) for address/route/NAT config with reliable rollback, or keep wrapping the system `ip`
-/ `iptables` commands as the prototype does? Netlink is more robust and testable but heavier;
-wrapped `ip` is simpler but fragile. Resolve during M2.
+**Resolved (D-19):** the Linux `NetConfigurator` wraps `ip`/`iptables`/`sysctl` (via
+`net::route`), with rollback on drop. Netlink (`rtnetlink`) remains an optional robustness
+refinement, not a blocker. macOS/Windows configurators are still a warn-noop (B-022).
 
 ## OQ-9: Non-root operation via capabilities
 

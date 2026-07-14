@@ -14,11 +14,12 @@ author: Derek Martinez
 
 ## Where We Stopped
 
-This session committed to the production pivot **and executed M0, M1, and most of M2**. VPN-Rust is
-now a **QUIC/UDP point-to-point VPN**: `engine::{run_server,run_client}` pump IP packets between a
-cross-platform `TunDevice` (`tun-rs`) and QUIC datagrams (`quinn`), with a versioned control
-handshake, QUIC keep-alive, client reconnect, and **pinned-certificate** authentication. The legacy
-TLS-over-TCP stack is deleted.
+This session committed to the production pivot **and executed M0–M3 — the full functional VPN
+core**. VPN-Rust is now a **QUIC/UDP point-to-point VPN**: `engine::{run_server,run_client}` pump IP
+packets between a cross-platform `TunDevice` (`tun-rs`) and QUIC datagrams (`quinn`), with a
+versioned control handshake, QUIC keep-alive, client reconnect, **pinned-certificate** auth
+(`keygen`, fingerprints, zeroized keys), and host **NAT/routing** via `NetConfigurator`. The legacy
+TLS-over-TCP stack is deleted. **Only M4 (TUI) and M5 (release readiness) remain.**
 
 - **The crate now builds natively on Windows** (was 4 compile errors at session start) and on
   Linux; a WSL Ubuntu path runs `cargo build`/`test`/`clippy`/`fmt`.
@@ -30,18 +31,23 @@ TLS-over-TCP stack is deleted.
 
 ## What's Next
 
-Pick up at the **M2/M3 remainder**, then M4/M5:
+Next session starts at **M4 (TUI control dashboard)** — the primary UX:
 
-1. **`NetConfigurator` (M2, B-020–022):** trait for address/route/NAT/DNS with rollback; Linux impl
-   wrapping the existing `net::route`/`net::security`; macOS/Windows impls. Wire server NAT + client
-   routes into the engine. Add the inner-MTU/PMTU clamp (B-016).
-2. **Security hardening (M3):** `keygen` CLI subcommand; SPKI-fingerprint pinning + fingerprint
-   display (TOFU); `zeroize` private keys; config validation.
-3. **M4 — TUI control dashboard:** ratatui 0.25→0.29; event-driven cockpit (connect/disconnect,
-   live throughput graphs, RTT, peer/route panels, log viewer, keybindings, theming) fed by an
-   engine stats/event channel.
-4. **M5 — Release readiness:** metrics, `--daemon` + systemd unit, per-OS packaging, docs, SemVer.
-5. **On-target verification:** run the tunnel end-to-end with root on Linux (or netns); validate
+1. **M4 — TUI control dashboard (start here):**
+   - Instrument the engine with a shared live-stats handle (connection state, bytes/packets
+     up/down, RTT from `quinn::Connection::rtt()`, negotiated params, peer address). Thread it
+     through `engine::pump` and the client/server session functions.
+   - Upgrade `ratatui` 0.25→0.29 and `crossterm` 0.27→0.29; rewrite `src/tui/*` as an event-driven
+     cockpit: state view, up/down throughput sparklines, RTT gauge, byte/packet counters,
+     peer/route panels, filterable log viewer (fed by a `tracing` layer), keybindings + help
+     overlay, dark theme + cyan accent (unless the operator says otherwise).
+   - Add a `--tui` mode (run engine + TUI concurrently). **Verify headlessly with ratatui's
+     `TestBackend`** (render a frame, assert on the buffer) since there's no interactive terminal in
+     the dev harness.
+2. **M5 — Release readiness:** metrics, `--daemon` + systemd unit, per-OS packaging, docs, SemVer.
+3. **Small items:** inner-MTU/PMTU clamp (B-016); config validation (B-029); native macOS/Windows
+   `NetConfigurator` (B-022, currently a warn-noop).
+4. **On-target verification:** run the tunnel end-to-end with root on Linux (or netns); validate
    Windows (wintun) and macOS (utun) clients on real hosts.
 
 ## Quick Reference
