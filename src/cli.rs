@@ -5,12 +5,12 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
-/// VPN-Rust: A simple VPN client and server implementation in Rust.
+/// VPN-Rust: a personal, QUIC-based point-to-point VPN.
 #[derive(Parser, Debug)]
 #[command(name = "vpn-rust")]
 #[command(author, version, about, long_about = None)]
 pub struct Cli {
-    /// Configuration file path
+    /// Configuration file path (reserved; not yet wired into the QUIC engine)
     #[arg(short, long, value_name = "FILE")]
     pub config: Option<PathBuf>,
 
@@ -29,51 +29,47 @@ pub struct Cli {
 /// Available commands
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Run the VPN server
+    /// Run the VPN server (listens for a single peer over QUIC/UDP)
     Server(ServerArgs),
 
-    /// Run the VPN client
+    /// Run the VPN client (connects to a server over QUIC/UDP)
     Client(ClientArgs),
 }
 
 /// Server command arguments
 #[derive(Parser, Debug)]
 pub struct ServerArgs {
-    /// Address to bind the server to
+    /// UDP address to bind the QUIC server to
     #[arg(short, long, default_value = "0.0.0.0")]
     pub bind: String,
 
-    /// Port to listen on
+    /// UDP port to listen on
     #[arg(short, long, default_value = "4433")]
     pub port: u16,
-
-    /// Path to TLS certificate file
-    #[arg(long, default_value = "certs/server.crt")]
-    pub cert: PathBuf,
-
-    /// Path to TLS private key file
-    #[arg(long, default_value = "certs/server.key")]
-    pub key: PathBuf,
 
     /// TUN interface name
     #[arg(long, default_value = "rustvpn0")]
     pub tun_name: String,
 
-    /// VPN subnet in CIDR notation
-    #[arg(long, default_value = "10.8.0.0/24")]
-    pub subnet: String,
-
-    /// Server IP address within VPN subnet
+    /// Server IP address within the VPN subnet
     #[arg(long, default_value = "10.8.0.1")]
-    pub server_ip: String,
+    pub tun_ip: String,
 
-    /// Enable NAT for client internet access
-    #[arg(long, default_value = "true")]
-    pub enable_nat: bool,
+    /// VPN subnet prefix length (CIDR)
+    #[arg(long, default_value = "30")]
+    pub prefix: u8,
 
-    /// Outbound interface for NAT (auto-detected if not specified)
-    #[arg(long)]
-    pub nat_interface: Option<String>,
+    /// Inner MTU for tunneled packets
+    #[arg(long, default_value = "1300")]
+    pub mtu: u16,
+
+    /// Path to the server certificate (DER); generated if missing
+    #[arg(long, default_value = "certs/server-cert.der")]
+    pub cert: PathBuf,
+
+    /// Path to the server private key (DER); generated if missing
+    #[arg(long, default_value = "certs/server-key.der")]
+    pub key: PathBuf,
 }
 
 /// Client command arguments
@@ -83,21 +79,33 @@ pub struct ClientArgs {
     #[arg(short, long, default_value = "127.0.0.1")]
     pub server: String,
 
-    /// Server port
+    /// Server UDP port
     #[arg(short, long, default_value = "4433")]
     pub port: u16,
 
-    /// Server hostname for TLS verification
+    /// Server name for certificate validation (must match the certificate SAN)
     #[arg(long, default_value = "localhost")]
-    pub hostname: String,
+    pub server_name: String,
+
+    /// Path to the pinned server certificate (DER)
+    #[arg(long, default_value = "certs/server-cert.der")]
+    pub server_cert: PathBuf,
 
     /// TUN interface name
     #[arg(long, default_value = "rustvpn1")]
     pub tun_name: String,
 
-    /// Client IP address within VPN subnet
+    /// Client IP address within the VPN subnet
     #[arg(long, default_value = "10.8.0.2")]
-    pub client_ip: String,
+    pub tun_ip: String,
+
+    /// VPN subnet prefix length (CIDR)
+    #[arg(long, default_value = "30")]
+    pub prefix: u8,
+
+    /// Inner MTU for tunneled packets
+    #[arg(long, default_value = "1300")]
+    pub mtu: u16,
 
     /// Disable automatic reconnection
     #[arg(long)]
@@ -133,23 +141,26 @@ mod tests {
         Cli::command().debug_assert();
     }
 
+    fn sample_server() -> Commands {
+        Commands::Server(ServerArgs {
+            bind: "0.0.0.0".to_string(),
+            port: 4433,
+            tun_name: "rustvpn0".to_string(),
+            tun_ip: "10.8.0.1".to_string(),
+            prefix: 30,
+            mtu: 1300,
+            cert: PathBuf::from("certs/server-cert.der"),
+            key: PathBuf::from("certs/server-key.der"),
+        })
+    }
+
     #[test]
     fn test_log_level() {
         let cli = Cli {
             config: None,
             verbose: 0,
             quiet: false,
-            command: Commands::Server(ServerArgs {
-                bind: "0.0.0.0".to_string(),
-                port: 4433,
-                cert: PathBuf::from("certs/server.crt"),
-                key: PathBuf::from("certs/server.key"),
-                tun_name: "rustvpn0".to_string(),
-                subnet: "10.8.0.0/24".to_string(),
-                server_ip: "10.8.0.1".to_string(),
-                enable_nat: true,
-                nat_interface: None,
-            }),
+            command: sample_server(),
         };
         assert_eq!(cli.log_level(), "info");
     }
@@ -160,18 +171,19 @@ mod tests {
             config: None,
             verbose: 2,
             quiet: false,
-            command: Commands::Server(ServerArgs {
-                bind: "0.0.0.0".to_string(),
-                port: 4433,
-                cert: PathBuf::from("certs/server.crt"),
-                key: PathBuf::from("certs/server.key"),
-                tun_name: "rustvpn0".to_string(),
-                subnet: "10.8.0.0/24".to_string(),
-                server_ip: "10.8.0.1".to_string(),
-                enable_nat: true,
-                nat_interface: None,
-            }),
+            command: sample_server(),
         };
         assert_eq!(cli.log_level(), "trace");
+    }
+
+    #[test]
+    fn test_quiet_log_level() {
+        let cli = Cli {
+            config: None,
+            verbose: 0,
+            quiet: true,
+            command: sample_server(),
+        };
+        assert_eq!(cli.log_level(), "error");
     }
 }

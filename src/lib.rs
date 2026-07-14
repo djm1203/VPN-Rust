@@ -11,16 +11,13 @@
 //! ## Example
 //!
 //! ```no_run
-//! use vpn_rust::net::tun::TunInterface;
+//! use std::net::Ipv4Addr;
+//! use vpn_rust::net::device::{SystemTun, TunDevice};
 //!
-//! # async fn example() -> anyhow::Result<()> {
-//! // Create a TUN interface
-//! let mut tun = TunInterface::create_client()?;
-//! tun.configure_client_ip()?;
-//!
-//! // Read packets from the interface
-//! let packet = tun.read_packet().await?;
-//! println!("Received {} bytes", packet.len());
+//! # fn example() -> anyhow::Result<()> {
+//! // Create a cross-platform TUN device.
+//! let tun = SystemTun::create("rustvpn0", Ipv4Addr::new(10, 8, 0, 1), 30, 1300)?;
+//! println!("device {} up, mtu {}", tun.name(), tun.mtu());
 //! # Ok(())
 //! # }
 //! ```

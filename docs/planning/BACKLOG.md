@@ -55,11 +55,11 @@ When an item ships: `Shipped — <commit> — <date>`.
 | ID | Tag | Title | Priority | Status |
 |----|-----|-------|----------|--------|
 | B-010 | [CORE] M1 | Define a `Transport` trait to decouple the engine from the wire implementation | HIGH | Done (local) — `transport::Transport` (send/recv datagram + max size) |
-| B-011 | [CORE] M1 | Implement the `Transport` over `quinn` (QUIC/UDP; pulls modern rustls stack) | HIGH | In Progress — `QuicTransport` + dev endpoint helpers done and tested; engine wiring + real auth pending |
-| B-012 | [CORE] M1 | Carry tunneled IP packets over **QUIC datagrams** (unreliable — no reliability-over-reliability) | HIGH | In Progress — datagram path proven in the loopback test; TUN↔datagram wiring pending (needs M2) |
+| B-011 | [CORE] M1 | Implement the `Transport` over `quinn` (QUIC/UDP; pulls modern rustls stack) | HIGH | Done (local) — `QuicTransport` wired into `engine` and the `vpn-rust` binary |
+| B-012 | [CORE] M1 | Carry tunneled IP packets over **QUIC datagrams** (unreliable — no reliability-over-reliability) | HIGH | Done (local) — `engine::pump` moves TUN packets ↔ QUIC datagrams |
 | B-013 | [CORE] M1 | **Control stream**: versioned handshake (protocol version, MTU/keepalive negotiation) | HIGH | Done (local) — `transport::control` (ClientHello/ServerHello, param negotiation); `tests/control_handshake.rs` |
 | B-014 | [CORE] M1 | Port keepalive + reconnect (exp backoff) onto QUIC timers / 0-RTT resumption | MED | Done (local) — QUIC keep-alive + idle-timeout in `quic`; client reconnect w/ backoff in `engine` |
-| B-015 | [CORE] M1 | Remove length-prefixed TLS-over-TCP protocol, echo path, and dead `tls.rs` code | HIGH | Pending |
+| B-015 | [CORE] M1 | Remove length-prefixed TLS-over-TCP protocol, echo path, and dead `tls.rs` code | HIGH | Done (local) — deleted `net/tls.rs`, `net/tun.rs`, `net/clients.rs`, old bins; dropped rustls 0.21 / tokio-rustls / webpki-roots / rustls-pemfile / x509-parser / tun 0.6 / winapi |
 | B-016 | [CORE] M1 | Path MTU handling for QUIC-over-UDP (avoid fragmentation; clamp inner MTU) | MED | Pending |
 
 ## M2 — Cross-platform TUN + network config
@@ -70,11 +70,11 @@ When an item ships: `Shipped — <commit> — <date>`.
 |----|-----|-------|----------|--------|
 | B-017 | [CORE] M2 | `TunDevice` trait abstracting the platform TUN backend | HIGH | Done (local) — `net::device::{TunDevice, SystemTun}` |
 | B-018 | [CORE] M2 | TUN backends via `tun-rs`: Linux, macOS (utun), Windows (wintun) | HIGH | In Progress — `tun-rs` backend compiles on Linux; Windows/macOS compile + runtime verification pending |
-| B-019 | [CORE] M2 | **Verify Windows client actually compiles and runs** (closes the #1 blocker) | HIGH | Pending |
+| B-019 | [CORE] M2 | **Verify Windows client actually compiles and runs** (closes the #1 blocker) | HIGH | Compiles — native `cargo build` on windows-msvc succeeds (was 4 errors at session start); runtime verification (wintun.dll + admin, real macOS host) still pending |
 | B-020 | [CORE] M2 | `NetConfigurator` trait for address/route/NAT/DNS, with guaranteed rollback on drop/crash | HIGH | Pending |
 | B-021 | [CORE] M2 | Linux `NetConfigurator` via netlink (`rtnetlink`) or wrapped `ip`, behind the trait | MED | Pending |
 | B-022 | [CORE] M2 | macOS + Windows route/DNS configurators | MED | Pending |
-| B-023 | [CORE] M2 | Config-driven addressing; collapse multi-client `ClientManager`/`IpPool` to a single-peer session | MED | Pending |
+| B-023 | [CORE] M2 | Config-driven addressing; collapse multi-client `ClientManager`/`IpPool` to a single-peer session | MED | Done (local) — CLI-driven addressing; single-peer engine; `clients.rs` removed |
 
 ## M3 — Security hardening (P2P)
 

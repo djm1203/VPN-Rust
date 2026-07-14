@@ -1,17 +1,16 @@
 //! Network modules for VPN communication.
 //!
-//! This module contains the core networking components:
 //! - [`device`] - Cross-platform async TUN device abstraction (`TunDevice`)
-//! - [`clients`] - Multi-client management and IP assignment
-//! - [`route`] - IP routing and NAT configuration
-//! - [`security`] - Security features (kill switch, DNS/IPv6 leak prevention)
-//! - [`tls`] - TLS connection handling for secure tunnels
-//! - [`tun`] - TUN interface management for packet capture/injection
+//! - [`route`] - Linux route + NAT configuration (server-side; Unix only)
+//! - [`security`] - Linux kill switch / DNS & IPv6 leak prevention (Unix only)
+//!
+//! The `route` and `security` modules shell out to `ip`/`iptables`/`sysctl` and
+//! are Linux-specific; they will be wrapped by a cross-platform
+//! `NetConfigurator` abstraction (backlog B-020).
 
 pub mod device;
 
-pub mod clients;
+#[cfg(unix)]
 pub mod route;
+#[cfg(unix)]
 pub mod security;
-pub mod tls;
-pub mod tun;
