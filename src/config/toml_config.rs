@@ -2,11 +2,12 @@
 //!
 //! This module provides configuration file parsing using TOML format.
 
-use anyhow::{Context, Result};
-use log::debug;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
+use tracing::debug;
+
+use super::error::{ConfigError, Result};
 
 /// Root configuration structure.
 ///
@@ -170,11 +171,18 @@ impl Config {
         let path = path.as_ref();
         debug!("Loading configuration from: {}", path.display());
 
-        let content = fs::read_to_string(path)
-            .with_context(|| format!("Failed to read config file: {}", path.display()))?;
+        let content = fs::read_to_string(path).map_err(|source| ConfigError::Read {
+            path: path.to_path_buf(),
+            source,
+        })?;
 
-        Self::parse(&content)
-            .with_context(|| format!("Failed to parse config file: {}", path.display()))
+        let config: Config = toml::from_str(&content).map_err(|source| ConfigError::TomlFile {
+            path: path.to_path_buf(),
+            source,
+        })?;
+
+        debug!("Parsed configuration: {:?}", config);
+        Ok(config)
     }
 
     /// Parses configuration from a TOML string.
@@ -187,7 +195,7 @@ impl Config {
     ///
     /// A parsed `Config` structure.
     pub fn parse(content: &str) -> Result<Self> {
-        let config: Config = toml::from_str(content).context("Invalid TOML format")?;
+        let config: Config = toml::from_str(content)?;
 
         debug!("Parsed configuration: {:?}", config);
         Ok(config)

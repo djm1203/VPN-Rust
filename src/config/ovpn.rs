@@ -3,10 +3,10 @@
 //! This module provides parsers for OpenVPN-compatible configuration files.
 //! Currently supports basic connection parameters; certificate parsing is planned.
 
-use anyhow::{Context, Result};
-use log::debug;
 use std::fs;
+use tracing::debug;
 
+use super::error::{ConfigError, Result};
 use crate::constants::DEFAULT_OVPN_PORT;
 
 /// Configuration parsed from an OpenVPN (.ovpn) configuration file.
@@ -59,10 +59,12 @@ impl OVPNConfig {
     pub fn from_file(path: &str) -> Result<Self> {
         debug!("Loading configuration from: {}", path);
 
-        let content = fs::read_to_string(path)
-            .with_context(|| format!("Failed to read config file: {}", path))?;
+        let content = fs::read_to_string(path).map_err(|source| ConfigError::Read {
+            path: path.into(),
+            source,
+        })?;
 
-        Self::parse(&content).with_context(|| format!("Failed to parse config file: {}", path))
+        Self::parse(&content)
     }
 
     /// Parses configuration from a string.
@@ -103,9 +105,9 @@ impl OVPNConfig {
         }
 
         if remote_addr.is_empty() {
-            return Err(anyhow::anyhow!(
-                "No 'remote' directive found in configuration"
-            ));
+            return Err(ConfigError::MissingDirective {
+                directive: "remote",
+            });
         }
 
         Ok(Self {

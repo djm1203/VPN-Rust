@@ -14,11 +14,11 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
-use log::{debug, error, info, trace, warn};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
 use tokio::sync::Mutex;
 use tokio::time;
 use tokio_rustls::client::TlsStream;
+use tracing::{debug, error, info, trace, warn};
 use vpn_rust::constants::{
     CLIENT_TUN_NAME, CONNECTION_TIMEOUT_SECS, DEFAULT_SERVER_ADDR, DEFAULT_SERVER_PORT,
     KEEPALIVE_INTERVAL_SECS, KEEPALIVE_MARKER, RECONNECT_INITIAL_DELAY_MS, RECONNECT_MAX_DELAY_MS,
@@ -57,7 +57,9 @@ impl ConnectionState {
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize logging
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    let log_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+    tracing_subscriber::fmt().with_env_filter(log_filter).init();
 
     info!("Starting VPN client");
 

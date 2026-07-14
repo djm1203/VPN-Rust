@@ -13,8 +13,8 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::{Context, Result};
-use log::{debug, info, warn};
 use tokio::sync::RwLock;
+use tracing::{debug, info, warn};
 
 // =============================================================================
 // IP Address Pool

@@ -26,12 +26,12 @@
 //! ```
 
 use anyhow::{Context, Result};
-use log::{debug, info, trace, warn};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::process::Command;
 use tokio::io::unix::AsyncFd;
+use tracing::{debug, info, trace, warn};
 use tun::{Configuration, Device as DeviceTrait};
 
 use crate::constants::{
@@ -221,7 +221,7 @@ impl TunInterface {
 
         info!("TUN interface {} configured with {}", self.name, ip_cidr);
 
-        if log::log_enabled!(log::Level::Debug) {
+        if tracing::enabled!(tracing::Level::DEBUG) {
             self.log_interface_config();
         }
 

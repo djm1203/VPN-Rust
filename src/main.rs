@@ -21,7 +21,7 @@
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use log::info;
+use tracing::info;
 
 use vpn_rust::cli::{Cli, Commands};
 use vpn_rust::config::Config;
@@ -30,9 +30,10 @@ use vpn_rust::config::Config;
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    // Initialize logging based on verbosity
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(cli.log_level()))
-        .init();
+    // Initialize logging based on verbosity (RUST_LOG overrides the CLI-derived default)
+    let log_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(cli.log_level()));
+    tracing_subscriber::fmt().with_env_filter(log_filter).init();
 
     info!("VPN-Rust v{}", env!("CARGO_PKG_VERSION"));
 
@@ -58,11 +59,11 @@ mod server {
     use std::time::Duration;
 
     use anyhow::{Context, Result};
-    use log::{debug, error, info, trace, warn};
     use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
     use tokio::sync::{broadcast, Mutex, RwLock};
     use tokio::time;
     use tokio_rustls::server::TlsStream;
+    use tracing::{debug, error, info, trace, warn};
 
     use vpn_rust::cli::ServerArgs;
     use vpn_rust::config::Config;
@@ -364,11 +365,11 @@ mod client {
     use std::time::{Duration, Instant};
 
     use anyhow::{Context, Result};
-    use log::{debug, error, info, trace, warn};
     use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf, WriteHalf};
     use tokio::sync::Mutex;
     use tokio::time;
     use tokio_rustls::client::TlsStream;
+    use tracing::{debug, error, info, trace, warn};
 
     use vpn_rust::cli::ClientArgs;
     use vpn_rust::config::Config;

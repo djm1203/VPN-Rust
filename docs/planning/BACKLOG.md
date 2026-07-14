@@ -44,8 +44,8 @@ When an item ships: `Shipped — <commit> — <date>`.
 | B-004 | [CORE] M0 | CI: `cargo-deny` / `cargo-audit` for advisories + license/dup checks | MED | In Progress — `cargo-audit` job authored; pending push to verify |
 | B-005 | [CORE] M0 | Test harness: loopback integration tests that need no root (transport/crypto without a real TUN) | HIGH | Pending |
 | B-006 | [CORE] M0 | Privileged/netns CI job for real-TUN end-to-end tests | MED | Pending |
-| B-007 | [CORE] M0 | Migrate logging `log` + `env_logger` → `tracing` + `tracing-subscriber` | MED | Pending |
-| B-008 | [CORE] M0 | Introduce `thiserror` library error types at module boundaries; keep `anyhow` at the binary boundary | MED | Pending |
+| B-007 | [CORE] M0 | Migrate logging `log` + `env_logger` → `tracing` + `tracing-subscriber` | MED | Done (local) — verified on Linux (build/clippy `-D warnings`/tests green); pending commit |
+| B-008 | [CORE] M0 | Introduce `thiserror` library error types at module boundaries; keep `anyhow` at the binary boundary | MED | In Progress — `ConfigError` pattern established on the stable `config` module; `net/` modules stay on anyhow until rewritten (D-18) |
 | B-009 | [CORE] M0 | (Optional) Split into a Cargo workspace: `vpncore` lib + `vpn` bin (+ `vpn-tui`) | LOW | Pending |
 
 ## M1 — QUIC transport core

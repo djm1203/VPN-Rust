@@ -6,8 +6,8 @@
 //! - IPv6 leak prevention: Blocks IPv6 traffic that could bypass the tunnel
 
 use anyhow::{Context, Result};
-use log::{debug, info, warn};
 use std::process::Command;
+use tracing::{debug, info, warn};
 
 // =============================================================================
 // Kill Switch

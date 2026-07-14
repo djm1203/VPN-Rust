@@ -15,8 +15,8 @@
 //! - Add a route to the VPN subnet through the TUN interface
 
 use anyhow::{Context, Result};
-use log::{debug, info, warn};
 use std::process::Command;
+use tracing::{debug, info, warn};
 
 /// Enables IPv4 forwarding on the system.
 ///

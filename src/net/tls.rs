@@ -10,7 +10,6 @@
 //! - Custom CA certificate support for self-signed certificates
 
 use anyhow::{Context, Result};
-use log::{debug, info, warn};
 use std::fs::File;
 use std::io::BufReader;
 use std::sync::Arc;
@@ -22,6 +21,7 @@ use tokio_rustls::{
     },
     TlsAcceptor, TlsConnector,
 };
+use tracing::{debug, info, warn};
 use webpki_roots::TLS_SERVER_ROOTS;
 
 use crate::constants::{
