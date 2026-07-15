@@ -45,6 +45,21 @@ pub enum ConfigError {
         /// The name of the missing directive.
         directive: &'static str,
     },
+
+    /// A parsed configuration value failed validation.
+    ///
+    /// This is produced by [`crate::config::Config::validate`] and is meant to
+    /// be actionable: `field` names the offending key (e.g. `server.server_ip`),
+    /// `value` echoes what was supplied, and `reason` states what is allowed.
+    #[error("invalid config value for '{field}' = '{value}': {reason}")]
+    Invalid {
+        /// The dotted field name that failed validation (e.g. `server.subnet`).
+        field: &'static str,
+        /// The offending value, echoed back to the user.
+        value: String,
+        /// A human-readable explanation of what is allowed / how to fix it.
+        reason: String,
+    },
 }
 
 impl From<toml::de::Error> for ConfigError {

@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::net::Ipv4Addr;
 use std::path::Path;
 use tracing::debug;
 
@@ -181,6 +182,10 @@ impl Config {
             source: Box::new(source),
         })?;
 
+        // A config loaded from disk is always validated so callers never act on
+        // out-of-range or malformed values (see `Config::validate`).
+        config.validate()?;
+
         debug!("Parsed configuration: {:?}", config);
         Ok(config)
     }
@@ -228,6 +233,138 @@ impl Config {
             max_reconnects: 0,
         }
     }
+}
+
+impl Config {
+    /// Validates the parsed configuration, returning an actionable error on the
+    /// first problem found.
+    ///
+    /// Validation is **fail-fast**: it returns the *first* [`ConfigError::Invalid`]
+    /// encountered rather than aggregating all problems. This keeps the return
+    /// type simple; fix the reported field and re-run to surface the next issue.
+    ///
+    /// The present-section rule is: only sections that are actually present
+    /// (`Some`) are checked, so a client-only or server-only config validates
+    /// just the section it defines.
+    ///
+    /// # Checks performed
+    ///
+    /// * `server.bind`, `server.server_ip`, `client.client_ip` parse as `Ipv4Addr`.
+    /// * `server.subnet` is valid CIDR (`A.B.C.D/prefix`) with prefix in `0..=32`.
+    /// * `server.port` / `client.port` are non-zero.
+    /// * Required path/name strings (`cert`, `key`, `tun_name`, `server`,
+    ///   `hostname`, and `nat_interface` when set) are non-empty.
+    ///
+    /// Note: there is no MTU field in the on-disk config (the inner MTU is an
+    /// engine/CLI parameter), so no MTU range is checked here.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::Invalid`] describing the field, offending value,
+    /// and what is allowed.
+    pub fn validate(&self) -> Result<()> {
+        if let Some(server) = &self.server {
+            server.validate()?;
+        }
+        if let Some(client) = &self.client {
+            client.validate()?;
+        }
+        Ok(())
+    }
+}
+
+impl ServerConfig {
+    /// Validates the server section. See [`Config::validate`].
+    fn validate(&self) -> Result<()> {
+        validate_ipv4("server.bind", &self.bind)?;
+        validate_ipv4("server.server_ip", &self.server_ip)?;
+        validate_cidr("server.subnet", &self.subnet)?;
+        validate_port("server.port", self.port)?;
+        validate_non_empty("server.cert", &self.cert)?;
+        validate_non_empty("server.key", &self.key)?;
+        validate_non_empty("server.tun_name", &self.tun_name)?;
+        if let Some(iface) = &self.nat_interface {
+            validate_non_empty("server.nat_interface", iface)?;
+        }
+        Ok(())
+    }
+}
+
+impl ClientConfig {
+    /// Validates the client section. See [`Config::validate`].
+    fn validate(&self) -> Result<()> {
+        // `server`/`hostname` may be DNS names, not IPs, so only require non-empty.
+        validate_non_empty("client.server", &self.server)?;
+        validate_non_empty("client.hostname", &self.hostname)?;
+        validate_ipv4("client.client_ip", &self.client_ip)?;
+        validate_port("client.port", self.port)?;
+        validate_non_empty("client.tun_name", &self.tun_name)?;
+        Ok(())
+    }
+}
+
+/// Checks that `value` parses as an IPv4 address.
+fn validate_ipv4(field: &'static str, value: &str) -> Result<()> {
+    if value.parse::<Ipv4Addr>().is_err() {
+        return Err(ConfigError::Invalid {
+            field,
+            value: value.to_string(),
+            reason: "expected a valid IPv4 address (e.g. 10.8.0.1)".to_string(),
+        });
+    }
+    Ok(())
+}
+
+/// Checks that `value` is CIDR notation `A.B.C.D/prefix` with prefix in `0..=32`.
+fn validate_cidr(field: &'static str, value: &str) -> Result<()> {
+    let Some((network, prefix)) = value.split_once('/') else {
+        return Err(ConfigError::Invalid {
+            field,
+            value: value.to_string(),
+            reason: "expected CIDR notation 'A.B.C.D/prefix' (e.g. 10.8.0.0/24)".to_string(),
+        });
+    };
+
+    if network.parse::<Ipv4Addr>().is_err() {
+        return Err(ConfigError::Invalid {
+            field,
+            value: value.to_string(),
+            reason: "network part must be a valid IPv4 address (e.g. 10.8.0.0/24)".to_string(),
+        });
+    }
+
+    match prefix.parse::<u8>() {
+        Ok(bits) if bits <= 32 => Ok(()),
+        _ => Err(ConfigError::Invalid {
+            field,
+            value: value.to_string(),
+            reason: "prefix length must be an integer in the range 0..=32".to_string(),
+        }),
+    }
+}
+
+/// Checks that `port` is non-zero.
+fn validate_port(field: &'static str, port: u16) -> Result<()> {
+    if port == 0 {
+        return Err(ConfigError::Invalid {
+            field,
+            value: port.to_string(),
+            reason: "port must be in the range 1..=65535 (0 is not a valid port)".to_string(),
+        });
+    }
+    Ok(())
+}
+
+/// Checks that a required string (path or name) is not empty/whitespace.
+fn validate_non_empty(field: &'static str, value: &str) -> Result<()> {
+    if value.trim().is_empty() {
+        return Err(ConfigError::Invalid {
+            field,
+            value: value.to_string(),
+            reason: "must not be empty".to_string(),
+        });
+    }
+    Ok(())
 }
 
 impl Default for ServerConfig {
@@ -308,5 +445,215 @@ mod tests {
 
         assert!(config.server.is_none());
         assert!(config.client.is_none());
+    }
+
+    // --- validation tests ---
+
+    /// A config built entirely from defaults (valid IPs, subnet, ports, paths)
+    /// must pass validation, as must an empty config with no sections.
+    #[test]
+    fn test_validate_valid_config() {
+        let config = Config {
+            server: Some(ServerConfig::default()),
+            client: Some(ClientConfig::default()),
+        };
+        assert!(config.validate().is_ok());
+
+        // No sections present => nothing to validate.
+        assert!(Config::default().validate().is_ok());
+    }
+
+    #[test]
+    fn test_validate_bad_server_ip() {
+        let server = ServerConfig {
+            server_ip: "not-an-ip".to_string(),
+            ..ServerConfig::default()
+        };
+        let config = Config {
+            server: Some(server),
+            client: None,
+        };
+
+        let err = config.validate().unwrap_err();
+        assert!(matches!(
+            err,
+            ConfigError::Invalid {
+                field: "server.server_ip",
+                ..
+            }
+        ));
+        let msg = err.to_string();
+        assert!(msg.contains("server.server_ip"), "message: {msg}");
+        assert!(
+            msg.contains("not-an-ip"),
+            "message should echo value: {msg}"
+        );
+        assert!(
+            msg.contains("IPv4"),
+            "message should say what's allowed: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_validate_bad_bind_address() {
+        let server = ServerConfig {
+            bind: "999.999.0.1".to_string(),
+            ..ServerConfig::default()
+        };
+        let config = Config {
+            server: Some(server),
+            client: None,
+        };
+
+        let err = config.validate().unwrap_err();
+        assert!(matches!(
+            err,
+            ConfigError::Invalid {
+                field: "server.bind",
+                ..
+            }
+        ));
+        assert!(err.to_string().contains("server.bind"));
+    }
+
+    #[test]
+    fn test_validate_subnet_prefix_out_of_range() {
+        let server = ServerConfig {
+            subnet: "10.8.0.0/33".to_string(),
+            ..ServerConfig::default()
+        };
+        let config = Config {
+            server: Some(server),
+            client: None,
+        };
+
+        let err = config.validate().unwrap_err();
+        assert!(matches!(
+            err,
+            ConfigError::Invalid {
+                field: "server.subnet",
+                ..
+            }
+        ));
+        let msg = err.to_string();
+        assert!(msg.contains("server.subnet"), "message: {msg}");
+        assert!(
+            msg.contains("0..=32"),
+            "message should state the bound: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_validate_subnet_not_cidr() {
+        let server = ServerConfig {
+            subnet: "10.8.0.0".to_string(), // missing "/prefix"
+            ..ServerConfig::default()
+        };
+        let config = Config {
+            server: Some(server),
+            client: None,
+        };
+
+        let err = config.validate().unwrap_err();
+        assert!(matches!(
+            err,
+            ConfigError::Invalid {
+                field: "server.subnet",
+                ..
+            }
+        ));
+        assert!(err.to_string().contains("CIDR"));
+    }
+
+    #[test]
+    fn test_validate_zero_port() {
+        let server = ServerConfig {
+            port: 0,
+            ..ServerConfig::default()
+        };
+        let config = Config {
+            server: Some(server),
+            client: None,
+        };
+
+        let err = config.validate().unwrap_err();
+        assert!(matches!(
+            err,
+            ConfigError::Invalid {
+                field: "server.port",
+                ..
+            }
+        ));
+        let msg = err.to_string();
+        assert!(msg.contains("server.port"), "message: {msg}");
+        assert!(
+            msg.contains("1..=65535"),
+            "message should state the range: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_validate_empty_cert_path() {
+        let server = ServerConfig {
+            cert: String::new(),
+            ..ServerConfig::default()
+        };
+        let config = Config {
+            server: Some(server),
+            client: None,
+        };
+
+        let err = config.validate().unwrap_err();
+        assert!(matches!(
+            err,
+            ConfigError::Invalid {
+                field: "server.cert",
+                ..
+            }
+        ));
+        assert!(err.to_string().contains("must not be empty"));
+    }
+
+    #[test]
+    fn test_validate_bad_client_ip() {
+        let client = ClientConfig {
+            client_ip: "10.8.0.999".to_string(),
+            ..ClientConfig::default()
+        };
+        let config = Config {
+            server: None,
+            client: Some(client),
+        };
+
+        let err = config.validate().unwrap_err();
+        assert!(matches!(
+            err,
+            ConfigError::Invalid {
+                field: "client.client_ip",
+                ..
+            }
+        ));
+        assert!(err.to_string().contains("client.client_ip"));
+    }
+
+    #[test]
+    fn test_validate_empty_client_hostname() {
+        let client = ClientConfig {
+            hostname: "   ".to_string(), // whitespace-only
+            ..ClientConfig::default()
+        };
+        let config = Config {
+            server: None,
+            client: Some(client),
+        };
+
+        let err = config.validate().unwrap_err();
+        assert!(matches!(
+            err,
+            ConfigError::Invalid {
+                field: "client.hostname",
+                ..
+            }
+        ));
     }
 }
