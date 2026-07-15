@@ -95,24 +95,24 @@ When an item ships: `Shipped — <commit> — <date>`.
 
 | ID | Tag | Title | Priority | Status |
 |----|-----|-------|----------|--------|
-| B-030 | [CORE] M4 | Upgrade `ratatui` 0.25 → 0.29 and `crossterm` 0.27 → 0.29 | HIGH | Pending |
-| B-031 | [CORE] M4 | Event-driven TUI architecture with a stats/event channel from the VPN engine | HIGH | Pending |
-| B-032 | [CORE] M4 | Connection state-machine view (Disconnected → Handshaking → Connected → Reconnecting) | HIGH | Pending |
-| B-033 | [CORE] M4 | Live up/down **throughput sparklines** + RTT/latency gauge | HIGH | Pending |
-| B-034 | [CORE] M4 | Peer panel, route table panel, byte/packet counters | MED | Pending |
-| B-035 | [CORE] M4 | Scrolling, filterable log viewer (fed by `tracing`) | MED | Pending |
-| B-036 | [CORE] M4 | Controls: connect / disconnect / reconnect / quit with keybindings + help overlay | HIGH | Pending |
-| B-037 | [CORE] M4 | Theming (light/dark + accent), consistent layout system, responsive to terminal size | MED | Pending |
+| B-030 | [CORE] M4 | Upgrade `ratatui` 0.25 → 0.29 and `crossterm` 0.27 → 0.29 | HIGH | Done (local) — ratatui 0.29 + crossterm 0.28 (the version ratatui 0.29 re-exports) |
+| B-031 | [CORE] M4 | Event-driven TUI architecture with a stats/event channel from the VPN engine | HIGH | Done (local) — `engine::stats::LiveStats` (Arc, atomics) written by the engine hot path + lifecycle; `tui::Dashboard` samples a `StatsSnapshot` each 150ms tick |
+| B-032 | [CORE] M4 | Connection state-machine view (Disconnected → Handshaking → Connected → Reconnecting) | HIGH | Done (local) — `ConnectionState` set across server/client/connect paths; colored badge in the title bar |
+| B-033 | [CORE] M4 | Live up/down **throughput sparklines** + RTT/latency gauge | HIGH | Done (local) — TX/RX `Sparkline`s from per-tick byte deltas; RTT `LineGauge` (0–200ms) sampled from `quinn::Connection::rtt()` |
+| B-034 | [CORE] M4 | Peer panel, route table panel, byte/packet counters | MED | Done (local) — Connection + Session panels (peer, endpoint, negotiated MTU/keepalive, reconnect attempts, byte/packet counters) |
+| B-035 | [CORE] M4 | Scrolling, filterable log viewer (fed by `tracing`) | MED | Done (local) — `tui::logbuf::{LogBuffer, LogLayer}` `tracing` layer → bounded ring; scroll + level filter in the log panel |
+| B-036 | [CORE] M4 | Controls: connect / disconnect / reconnect / quit with keybindings + help overlay | HIGH | Done (local) — keybindings (q/esc, f filter, ↑/↓/PgUp/PgDn scroll, g/Home, c clear, ?/h help) + centered help overlay |
+| B-037 | [CORE] M4 | Theming (light/dark + accent), consistent layout system, responsive to terminal size | MED | Done (local) — dark theme + cyan accent, `Layout`-driven responsive panels, clamped; headless `TestBackend` render tests |
 
 ## M5 — Release readiness
 
 | ID | Tag | Title | Priority | Status |
 |----|-----|-------|----------|--------|
-| B-038 | [CORE] M5 | Metrics surface (counters/histograms) feeding TUI and optional export | LOW | Pending |
-| B-039 | [CORE] M5 | Headless `--daemon` mode + systemd unit (Linux server) | MED | Pending |
-| B-040 | [CORE] M5 | Client packaging: release binaries / installers per OS | MED | Pending |
-| B-041 | [CORE] M5 | Docs: quickstart, threat model, versioned wire-protocol spec | MED | Pending |
-| B-042 | [CORE] M5 | SemVer discipline; matched-build guarantee until protocol stabilizes | LOW | Pending |
+| B-038 | [CORE] M5 | Metrics surface (counters/histograms) feeding TUI and optional export | LOW | Partial — live counters/RTT surfaced via `LiveStats` to the TUI; a standalone export (e.g. Prometheus) is still pending |
+| B-039 | [CORE] M5 | Headless `--daemon` mode + systemd unit (Linux server) | MED | Done (local) — `--daemon` flag (headless, ANSI-off logging for journald; conflicts with `--tui`); `packaging/systemd/vpn-rust-server.service` (Type=simple, CAP_NET_ADMIN, hardening). Note: true double-fork detach deferred — service managers supervise |
+| B-040 | [CORE] M5 | Client packaging: release binaries / installers per OS | MED | Done (local) — `.github/workflows/release.yml` (tag-triggered matrix build → per-OS archives → GitHub Release); `packaging/README.md` per-OS install notes |
+| B-041 | [CORE] M5 | Docs: quickstart, threat model, versioned wire-protocol spec | MED | Done (local) — `docs/QUICKSTART.md`, `docs/operations/THREAT_MODEL.md`, `docs/standards/WIRE_PROTOCOL.md` |
+| B-042 | [CORE] M5 | SemVer discipline; matched-build guarantee until protocol stabilizes | LOW | Partial — documented (versioning section in WIRE_PROTOCOL.md); not yet enforced in tooling |
 
 ---
 

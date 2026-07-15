@@ -12,7 +12,9 @@ author: Derek Martinez
 
 # Status — VPN-Rust
 
-**Last updated:** 2026-07-14 — M0–M3 complete; the core cross-platform QUIC VPN works; M4 (TUI) next.
+**Last updated:** 2026-07-15 — M0–M4 complete + M5 docs/packaging done; the core QUIC VPN now has a
+live TUI cockpit. Remaining M5 (metrics export, SemVer tooling) is LOW; on-target runtime
+verification still pending.
 
 ## Project Snapshot
 
@@ -71,20 +73,34 @@ author: Derek Martinez
 
 ## In Flight
 
-- None — the core VPN (M0–M3) is complete and committed. **M4 (TUI dashboard) is the next
-  session's focus.**
+- None — M0–M4 are complete plus the substantive M5 items (docs + packaging). Changes are **local
+  and uncommitted** (see `git status`); awaiting the operator's go-ahead to commit.
+
+## Recently done (2026-07-15)
+
+- **M4 — TUI control dashboard (complete):** ratatui 0.25→0.29 / crossterm 0.28; new
+  `engine::stats::LiveStats` telemetry handle written by the engine (counters, state, RTT, peer,
+  negotiated params) and sampled by `tui::Dashboard` each tick; event-driven cockpit (colored state
+  badge, Connection/Session panels, TX/RX sparklines, RTT gauge, byte/packet counters, filterable
+  scrolling log viewer fed by a `tracing` layer, keybindings + help overlay, dark/cyan theme);
+  `--tui` wiring (engine on a task, dashboard foreground) and `--daemon` headless flag; headless
+  `TestBackend` render tests.
+- **M5 — docs (B-041):** `QUICKSTART.md`, `THREAT_MODEL.md`, `WIRE_PROTOCOL.md`.
+- **M5 — packaging (B-039/B-040):** `release.yml` matrix release workflow + `packaging/` (systemd
+  unit, install docs).
+- **Fix:** boxed the large `toml::de::Error` in `ConfigError` for `clippy -D warnings` (a stricter
+  clippy started flagging `result_large_err`).
 
 ## Next
 
-- **M4 — TUI control dashboard (next):** instrument the engine with a shared live-stats handle
-  (state, throughput, RTT, byte/packet counters); upgrade ratatui 0.25→0.29; build an event-driven
-  cockpit (state view, throughput sparklines, RTT gauge, peer/route panels, log viewer,
-  keybindings, dark theme + cyan accent); verify headlessly with ratatui `TestBackend`.
-- **M5 — Release readiness:** metrics, `--daemon` + systemd unit, per-OS packaging, docs, SemVer.
+- **M5 leftovers (LOW):** standalone metrics export (B-038; live metrics already reach the TUI);
+  SemVer enforcement tooling (B-042; already documented).
 - **Remaining small items:** inner-MTU/PMTU clamp refinement (B-016); config validation (B-029);
-  native macOS/Windows `NetConfigurator` (B-022).
-- **On-target verification:** run the tunnel end-to-end with root on Linux (or netns), and validate
-  the Windows (wintun) / macOS (utun) clients on real hosts.
+  native macOS/Windows `NetConfigurator` (B-022); true `--daemon` double-fork detach (deferred —
+  service managers supervise).
+- **On-target verification (the big gap):** run the tunnel end-to-end with root on Linux (or netns);
+  drive the `--tui` dashboard against a live session; validate the Windows (wintun) / macOS (utun)
+  clients on real hosts.
 
 ## Known Issues / Limitations
 
@@ -92,11 +108,14 @@ author: Derek Martinez
   runs up to TUN creation (root-gated). The full packet-forwarding path is not yet exercised
   end-to-end (needs root; the dev WSL has no passwordless sudo), and the Windows/macOS clients have
   not been run on real hosts (need wintun.dll / a macOS box).
-- **No routing/NAT wired yet:** the engine tunnels packets between the two TUN devices but does not
-  yet configure host routes or server NAT — the `NetConfigurator` abstraction (M2, B-020–022) is
-  pending; the Linux `route`/`security` modules exist but are not wired in.
-- **Security refinements pending (M3):** pinning is by exact certificate (single-entry root store),
-  not yet SPKI-fingerprint with display/TOFU; private keys are not yet zeroized.
-- **TUI not yet reworked:** the prototype ratatui 0.25 dashboard is unused by the new engine and
-  awaits the M4 rewrite.
+- **Routing/NAT is Linux-only:** the `NetConfigurator` wires server NAT + client route on Linux
+  (rollback on drop); macOS/Windows are a warn-noop (B-022).
+- **Security model:** pinning is by exact certificate (single-entry root store), identified by
+  SHA-256 fingerprint (TOFU); private key is zeroized and stored `0600`. SPKI-fingerprint pinning is
+  an optional future refinement (B-025).
+- **TUI runtime unverified against a live tunnel:** the dashboard renders correctly under
+  `TestBackend` and the crate builds, but it has not been driven against a real `--tui` session
+  (needs root for the TUN + an interactive terminal).
+- **`--daemon` does not detach:** it selects headless, ANSI-off logging suited to a systemd
+  `Type=simple` service; true double-fork daemonization is deferred.
 - **Privileges:** TUN creation requires root / CAP_NET_ADMIN.

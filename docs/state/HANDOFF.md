@@ -14,41 +14,52 @@ author: Derek Martinez
 
 ## Where We Stopped
 
-This session committed to the production pivot **and executed M0–M3 — the full functional VPN
-core**. VPN-Rust is now a **QUIC/UDP point-to-point VPN**: `engine::{run_server,run_client}` pump IP
-packets between a cross-platform `TunDevice` (`tun-rs`) and QUIC datagrams (`quinn`), with a
-versioned control handshake, QUIC keep-alive, client reconnect, **pinned-certificate** auth
-(`keygen`, fingerprints, zeroized keys), and host **NAT/routing** via `NetConfigurator`. The legacy
-TLS-over-TCP stack is deleted. **Only M4 (TUI) and M5 (release readiness) remain.**
+This session executed **M4 in full and the substantive M5 items**, on top of the already-complete
+M0–M3 core. VPN-Rust now has a **live TUI control cockpit** over the QUIC P2P engine.
 
-- **The crate now builds natively on Windows** (was 4 compile errors at session start) and on
-  Linux; a WSL Ubuntu path runs `cargo build`/`test`/`clippy`/`fmt`.
-- Committed in clean increments (see `git log`): docs+CI, tracing+thiserror, QUIC spike, control
-  handshake, TunDevice, engine+identity, binary rewire + legacy removal, cert-SAN fix.
-- **Verified:** 17 unit + 2 loopback integration + 2 doc tests green; `clippy -D warnings` + `fmt`
-  clean; the real binary generates its identity and binds the QUIC endpoint (TUN creation is
-  root-gated, so full packet flow is not yet exercised here — no passwordless sudo in WSL).
+- **M4 (TUI):** ratatui 0.25→0.29 / crossterm 0.28. New `engine::stats::LiveStats` (`Arc`, mostly
+  atomics) is written by the engine on the hot path (byte/packet counters) and across the lifecycle
+  (state, peer, negotiated params, RTT via `quinn::Connection::rtt()`, reconnect attempts), and
+  sampled by `tui::Dashboard` each 150 ms tick — which derives throughput history by differencing
+  the counters. `tui::ui::render` draws the cockpit; `tui::run_dashboard` owns the terminal + event
+  loop; `tui::logbuf::{LogBuffer, LogLayer}` diverts `tracing` into a bounded ring the log panel
+  renders. Wired via `--tui` (engine on a `tokio::spawn` task, dashboard in the foreground; quitting
+  aborts the engine) and a headless `--daemon` flag (ANSI-off logging; conflicts with `--tui`).
+- **M5:** docs (`QUICKSTART.md`, `THREAT_MODEL.md`, `WIRE_PROTOCOL.md`); packaging (`release.yml`
+  matrix release workflow, `packaging/systemd/vpn-rust-server.service`, `packaging/` docs).
+- **Fix:** boxed `toml::de::Error` in `ConfigError` (clippy `result_large_err`, newly enforced).
+- **How it was built:** the M4 spine (deps, `LiveStats`, engine instrumentation, `logbuf`) was
+  written directly; then **three parallel subagents** (disjoint file sets — `src/tui/` vs `docs/`
+  vs `.github/`+`packaging/`) produced the TUI build-out, docs, and packaging; integration (`--tui`
+  / `--daemon` wiring, the config fix) was done after.
+- **Verified:** 36 unit + 2 integration + 2 doc (40 total) green; `clippy -D warnings` + `fmt`
+  clean; native Windows `cargo build` and `cargo build --release` succeed; CLI smoke test confirms
+  `--tui`/`--daemon` parse, the conflict is enforced, and `keygen` works. **The interactive TUI has
+  not been run against a live tunnel** (needs root for the TUN + a real terminal).
+- **State:** changes are **uncommitted** — commit only on the operator's request (R-10.5).
 
 ## What's Next
 
-Next session starts at **M4 (TUI control dashboard)** — the primary UX:
+The core + UX + release scaffolding are done. What remains:
 
-1. **M4 — TUI control dashboard (start here):**
-   - Instrument the engine with a shared live-stats handle (connection state, bytes/packets
-     up/down, RTT from `quinn::Connection::rtt()`, negotiated params, peer address). Thread it
-     through `engine::pump` and the client/server session functions.
-   - Upgrade `ratatui` 0.25→0.29 and `crossterm` 0.27→0.29; rewrite `src/tui/*` as an event-driven
-     cockpit: state view, up/down throughput sparklines, RTT gauge, byte/packet counters,
-     peer/route panels, filterable log viewer (fed by a `tracing` layer), keybindings + help
-     overlay, dark theme + cyan accent (unless the operator says otherwise).
-   - Add a `--tui` mode (run engine + TUI concurrently). **Verify headlessly with ratatui's
-     `TestBackend`** (render a frame, assert on the buffer) since there's no interactive terminal in
-     the dev harness.
-2. **M5 — Release readiness:** metrics, `--daemon` + systemd unit, per-OS packaging, docs, SemVer.
-3. **Small items:** inner-MTU/PMTU clamp (B-016); config validation (B-029); native macOS/Windows
-   `NetConfigurator` (B-022, currently a warn-noop).
-4. **On-target verification:** run the tunnel end-to-end with root on Linux (or netns); validate
-   Windows (wintun) and macOS (utun) clients on real hosts.
+1. **On-target verification (highest value):** run `sudo ./target/release/vpn-rust server` and a
+   `client` end-to-end with root on Linux (or a netns pair); drive the `--tui` dashboard against the
+   live session to confirm counters/state/RTT/sparklines update; validate Windows (wintun +
+   `wintun.dll`, admin) and macOS (utun, sudo) clients on real hosts.
+2. **M5 leftovers (LOW):** standalone metrics export (B-038 — live metrics already reach the TUI);
+   SemVer enforcement tooling (B-042 — already documented in `WIRE_PROTOCOL.md`).
+3. **Small items:** inner-MTU/PMTU clamp (B-016); config validation with actionable errors (B-029);
+   native macOS/Windows `NetConfigurator` (B-022, currently a warn-noop); true `--daemon` detach.
+
+## How to try the dashboard
+
+```bash
+# Linux, needs root for the TUN. Server first (generates its identity on first run):
+sudo ./target/release/vpn-rust server --bind 0.0.0.0 --port 4433 --tui
+# Copy certs/server-cert.der to the client, then:
+sudo ./target/release/vpn-rust client --server <host> --server-cert server-cert.der --tui
+# Keys: q/Esc quit · f cycle log filter · ↑/↓/PgUp/PgDn scroll · g/Home top · c clear · ?/h help
+```
 
 ## Quick Reference
 

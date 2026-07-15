@@ -12,6 +12,38 @@ author: Derek Martinez
 
 # Changelog
 
+## 2026-07-15
+
+- **M4 — TUI control dashboard (complete, local):** rebuilt the terminal UI as a live, event-driven
+  cockpit on **ratatui 0.29 / crossterm 0.28** (B-030).
+  - **Engine telemetry (B-031):** new `engine::stats::LiveStats` — an `Arc`-shared, mostly-atomic
+    handle the engine writes on the hot path (cumulative byte/packet counters) and lifecycle
+    transitions (state, peer, negotiated params, endpoint, RTT, reconnect attempts). `engine::pump`
+    now records per-datagram counts and samples `quinn::Connection::rtt()` every second; the
+    server/client/connect paths drive the `ConnectionState` machine. Signatures changed to
+    `run_server(params, stats)` / `run_client(params, stats)`.
+  - **Dashboard:** `tui::Dashboard` (rendering-free state) samples a `StatsSnapshot` each 150ms
+    tick and derives TX/RX throughput history by differencing counters; `tui::ui::render` draws a
+    title bar with a colored state badge, Connection + Session panels, TX/RX `Sparkline`s, an RTT
+    `LineGauge`, and a scrolling/filterable log panel; `tui::run_dashboard` owns an RAII terminal
+    guard + event loop (B-032–B-037).
+  - **Log capture (B-035):** `tui::logbuf::{LogBuffer, LogLayer}` — a `tracing` layer feeding a
+    bounded ring the dashboard renders (so logs don't corrupt the alternate screen).
+  - **CLI wiring:** `--tui` (run engine on a task + dashboard in the foreground; quitting aborts the
+    engine) and `--daemon` (headless, ANSI-off logging for journald; conflicts with `--tui`). Added
+    to `server`/`client`.
+  - Headless `TestBackend` render tests (no TTY needed).
+- **M5 — release readiness (substantive items, local):**
+  - **Docs (B-041):** `docs/QUICKSTART.md`, `docs/operations/THREAT_MODEL.md`,
+    `docs/standards/WIRE_PROTOCOL.md` (versioned, `PROTOCOL_VERSION = 1`).
+  - **Packaging (B-039/B-040):** `.github/workflows/release.yml` (tag-triggered matrix build → per-OS
+    archives → GitHub Release); `packaging/systemd/vpn-rust-server.service` + `packaging/` install docs.
+- **Fix:** boxed the large `toml::de::Error` in `config::ConfigError` (clippy `result_large_err`,
+  newly enforced by a stricter clippy) so `clippy -D warnings` is clean again.
+- **Tests:** 36 unit + 2 integration + 2 doc (40 total) green; `clippy -D warnings` + `fmt` clean;
+  native Windows `cargo build`/`cargo build --release` succeed. **M4 done; M5 docs/packaging done;
+  remaining M5 is metrics export (B-038) + SemVer tooling (B-042), both LOW.**
+
 ## 2026-07-14
 
 - **M0 — Foundation:** established a Linux/WSL build+test path (WSL Ubuntu, Rust 1.95); hardened CI

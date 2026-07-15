@@ -24,9 +24,10 @@ Residual: the Windows (wintun) / macOS (utun) clients have not been *run* on rea
 
 **Severity:** High → Medium
 **Status:** Mitigated (M0/M1)
-**Mitigation:** Root-free loopback integration tests now exist (QUIC datagram echo, control
-handshake) plus CI gates (clippy `-D warnings` / fmt / cargo-audit) and unit tests (18). Still
-wanted: a full data-plane end-to-end test (needs root or netns) and broader coverage of the engine.
+**Mitigation:** Root-free loopback integration tests exist (QUIC datagram echo, control handshake)
+plus CI gates (clippy `-D warnings` / fmt / cargo-audit) and unit tests (36, incl. `LiveStats`,
+`logbuf`, and headless `TestBackend` dashboard renders). Still wanted: a full data-plane end-to-end
+test (needs root or netns) and a live-tunnel run of the `--tui` dashboard.
 
 ## R-3: Prototype self-signed certificates, no revocation, not production-audited
 
@@ -52,13 +53,16 @@ requirement clearly; consider granting CAP_NET_ADMIN for unprivileged operation 
 rules in `src/net/security.rs`. If the rules are bypassed or misconfigured, DNS queries can leak.
 Implement DNS-through-tunnel (OQ-7) to close the gap.
 
-## R-6: Single-threaded runtime performance ceiling (unmeasured)
+## R-6: Runtime performance unmeasured; TUI blocks a worker thread
 
 **Severity:** Low/Medium
 **Status:** Open
-**Mitigation:** The runtime is single-threaded and the latency/throughput figures in the docs are
-targets, not measurements. Profile hot paths under load and evaluate a multi-threaded Tokio
-runtime before making performance claims.
+**Mitigation:** The latency/throughput figures in the docs are targets, not measurements. The
+runtime is the default multi-threaded Tokio runtime (`#[tokio::main]`), which is what lets the
+`--tui` design run the engine on a background task while the blocking dashboard event loop occupies
+one worker (D-21) — so the engine keeps progressing. Residual: profile hot paths under load before
+making performance claims, and consider moving the dashboard's input polling off a worker thread
+(e.g. `spawn_blocking` or an async event stream) if worker-thread pressure ever matters.
 
 ## R-7: Prototype mTLS trust model assumes trusted endpoints
 

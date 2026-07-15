@@ -114,9 +114,12 @@ is point-to-point (`/30` or `/31`).
 **Status:** Resolved
 
 Is the TUI a monitoring afterthought or the main interface? **Resolved (D-17):** the TUI is the
-**primary control dashboard** — connect/disconnect/reconnect controls, live throughput sparklines
-and RTT gauge, peer/route panels, filterable log viewer, keybindings, help, and theming, fed by an
-engine→UI event/stats channel. Built out in M4 (ratatui 0.29).
+**primary control dashboard** — live throughput sparklines and RTT gauge, connection state view,
+peer/session panels, filterable log viewer, keybindings, help, and theming, fed by the engine's
+shared `LiveStats` handle (D-20). **Delivered in M4 (ratatui 0.29)** and wired via `--tui`; the
+interactive loop still needs verification against a live tunnel on a real terminal. Note: explicit
+disconnect/reconnect *controls* were not built — reconnect is automatic (engine backoff); the
+dashboard is observe-and-quit. A manual reconnect/disconnect keybinding remains possible future work.
 
 ## OQ-12: Cargo workspace split (B-009)
 

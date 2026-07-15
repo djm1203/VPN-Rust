@@ -269,3 +269,54 @@ routing; a fixed 1500 MTU.
 SPKI-fingerprint pinning if key-rotation-without-re-pin is wanted (B-025 refinement); native
 macOS/Windows `NetConfigurator` (B-022); PMTU discovery (B-016); configurable cert SAN.
 
+## D-20: Engine→TUI telemetry via a shared `LiveStats` handle; TUI samples on a tick (M4)
+
+**Context:** The M4 dashboard (D-17) needs live connection state, throughput, RTT, peer, and
+negotiated params from the engine. The obvious "event channel" (mpsc of deltas) couples the engine
+hot path to a consumer and risks unbounded growth if the UI stalls.
+
+**Decision:** The engine publishes into an `Arc`-shared **`engine::stats::LiveStats`** — relaxed
+atomics for cumulative byte/packet counters (hot path) plus a few `Mutex`-guarded fields (peer,
+negotiated params, connect instant) that change only per (re)connect. The **TUI samples a
+`StatsSnapshot` each 150 ms render tick** and derives throughput history by *differencing the
+cumulative counters* itself, so the engine keeps no second clock and there is no per-packet channel
+send. `ConnectionState` is driven from the server/client/connect paths.
+
+**Alternatives:** An mpsc event stream of `AppEvent`s (the prototype's approach); a metrics crate.
+
+**Consequences:** Engine writes are a few `fetch_add`s; the UI owns all rate/graph logic and is
+trivially unit-testable via `TestBackend`. A torn read across atomics is invisible at human refresh
+rates. `run_server`/`run_client` signatures gained a `stats: Arc<LiveStats>` parameter.
+
+## D-21: TUI runs on the foreground; engine on a background task. Logs divert to a buffer.
+
+**Context:** The dashboard event loop uses blocking `crossterm` polling, and `tracing` output to
+stdout would corrupt the alternate screen.
+
+**Decision:** Under `--tui`, spawn the engine future with `tokio::spawn` and run the (blocking)
+dashboard loop in the foreground; quitting the dashboard `abort()`s the engine. `tracing` is routed
+through a **`tui::logbuf::LogLayer`** into a bounded in-memory ring the dashboard renders, instead
+of the stdout `fmt` subscriber. A separate **`--daemon`** flag selects headless operation with
+plain (ANSI-off) logging for journald and conflicts with `--tui`.
+
+**Alternatives:** `select!` both on one task (would starve the engine while the UI blocks); a fully
+async input reader; double-fork daemonization (deferred — service managers supervise the process).
+
+**Consequences:** Clean separation; the engine keeps running (and logging into the panel) even if it
+errors, so the operator can read the failure before quitting. True detaching daemonization is not
+implemented.
+
+## D-22: Box the large TOML error variant in `ConfigError`
+
+**Context:** A stricter `clippy` release began enforcing `result_large_err`; `toml::de::Error` is
+large enough that inlining it in `ConfigError` bloats every `Result<_, ConfigError>` and fails
+`clippy -D warnings` (the CI gate).
+
+**Decision:** Store the parse error as `Box<toml::de::Error>` in both the `TomlFile` and `Toml`
+variants, with a manual `From<toml::de::Error>` that boxes (replacing `#[from]`).
+
+**Alternatives:** `#[allow(clippy::result_large_err)]` (hides the cost); pin an older clippy.
+
+**Consequences:** `Result<_, ConfigError>` shrinks to a pointer-sized error; gate is green. One
+manual `From` impl and a `Box::new` at the one construction site.
+
