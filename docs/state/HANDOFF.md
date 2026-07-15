@@ -46,10 +46,14 @@ The core + UX + release scaffolding are done. What remains:
    `client` end-to-end with root on Linux (or a netns pair); drive the `--tui` dashboard against the
    live session to confirm counters/state/RTT/sparklines update; validate Windows (wintun +
    `wintun.dll`, admin) and macOS (utun, sudo) clients on real hosts.
-2. **M5 leftovers (LOW):** standalone metrics export (B-038 — live metrics already reach the TUI);
-   SemVer enforcement tooling (B-042 — already documented in `WIRE_PROTOCOL.md`).
-3. **Small items:** inner-MTU/PMTU clamp (B-016); config validation with actionable errors (B-029);
-   native macOS/Windows `NetConfigurator` (B-022, currently a warn-noop); true `--daemon` detach.
+2. **Optional / deferred:** native macOS/Windows `NetConfigurator` (B-022, currently a warn-noop —
+   needs the actual OSes to verify); Cargo workspace split (B-009, deferred — rewrites every path);
+   B-042 enforcement tooling; true `--daemon` double-fork detach; push to GitHub to confirm the CI
+   matrix (B-002/3/4/6).
+
+Note: the earlier "Group A" hardening batch is **done** — config validation + `--config` wiring
+(B-029), oversize-datagram guard (B-016), no-payload-logging policy (B-028), a Prometheus
+`--metrics-addr` endpoint (B-038), and the versioning doc (B-042).
 
 ## How to try the dashboard
 

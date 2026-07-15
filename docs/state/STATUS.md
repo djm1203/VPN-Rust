@@ -12,9 +12,11 @@ author: Derek Martinez
 
 # Status — VPN-Rust
 
-**Last updated:** 2026-07-15 — M0–M4 complete + M5 docs/packaging done; the core QUIC VPN now has a
-live TUI cockpit. Remaining M5 (metrics export, SemVer tooling) is LOW; on-target runtime
-verification still pending.
+**Last updated:** 2026-07-15 — M0–M4 complete and M5 substantially complete (docs, packaging,
+metrics, config validation, PMTU guard, versioning). The core QUIC VPN has a live TUI cockpit,
+a Prometheus endpoint, and validated config. The remaining gap is **on-target runtime
+verification**; only optional items (B-042 tooling, B-009 workspace split, native macOS/Windows
+`NetConfigurator`) are outstanding.
 
 ## Project Snapshot
 
@@ -73,8 +75,8 @@ verification still pending.
 
 ## In Flight
 
-- None — M0–M4 are complete plus the substantive M5 items (docs + packaging). Changes are **local
-  and uncommitted** (see `git status`); awaiting the operator's go-ahead to commit.
+- None — M0–M4 complete and M5 substantially complete (docs, packaging, metrics, config validation,
+  PMTU guard, versioning). All committed. The open work is on-target runtime verification.
 
 ## Recently done (2026-07-15)
 
@@ -90,17 +92,19 @@ verification still pending.
   unit, install docs).
 - **Fix:** boxed the large `toml::de::Error` in `ConfigError` for `clippy -D warnings` (a stricter
   clippy started flagging `result_large_err`).
+- **Hardening batch (Group A):** config validation with actionable errors + `--config` wiring
+  (B-029); outbound oversize-datagram guard (B-016); no-payload-logging policy (B-028); Prometheus
+  `--metrics-addr` endpoint (B-038); versioning policy doc (B-042). Built via three parallel
+  subagents on disjoint modules, integrated centrally.
 
 ## Next
 
-- **M5 leftovers (LOW):** standalone metrics export (B-038; live metrics already reach the TUI);
-  SemVer enforcement tooling (B-042; already documented).
-- **Remaining small items:** inner-MTU/PMTU clamp refinement (B-016); config validation (B-029);
-  native macOS/Windows `NetConfigurator` (B-022); true `--daemon` double-fork detach (deferred —
-  service managers supervise).
 - **On-target verification (the big gap):** run the tunnel end-to-end with root on Linux (or netns);
-  drive the `--tui` dashboard against a live session; validate the Windows (wintun) / macOS (utun)
-  clients on real hosts.
+  drive the `--tui` dashboard against a live session to confirm counters/state/RTT/sparklines
+  update; scrape `--metrics-addr`; validate the Windows (wintun) / macOS (utun) clients on real hosts.
+- **Optional / deferred:** native macOS/Windows `NetConfigurator` (B-022, needs the actual OSes);
+  B-042 enforcement tooling; Cargo workspace split (B-009); true `--daemon` double-fork detach; push
+  to GitHub to confirm the CI matrix (B-002/3/4/6).
 
 ## Known Issues / Limitations
 

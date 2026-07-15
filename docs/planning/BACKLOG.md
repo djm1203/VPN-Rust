@@ -60,7 +60,7 @@ When an item ships: `Shipped — <commit> — <date>`.
 | B-013 | [CORE] M1 | **Control stream**: versioned handshake (protocol version, MTU/keepalive negotiation) | HIGH | Done (local) — `transport::control` (ClientHello/ServerHello, param negotiation); `tests/control_handshake.rs` |
 | B-014 | [CORE] M1 | Port keepalive + reconnect (exp backoff) onto QUIC timers / 0-RTT resumption | MED | Done (local) — QUIC keep-alive + idle-timeout in `quic`; client reconnect w/ backoff in `engine` |
 | B-015 | [CORE] M1 | Remove length-prefixed TLS-over-TCP protocol, echo path, and dead `tls.rs` code | HIGH | Done (local) — deleted `net/tls.rs`, `net/tun.rs`, `net/clients.rs`, old bins; dropped rustls 0.21 / tokio-rustls / webpki-roots / rustls-pemfile / x509-parser / tun 0.6 / winapi |
-| B-016 | [CORE] M1 | Path MTU handling for QUIC-over-UDP (avoid fragmentation; clamp inner MTU) | MED | Pending |
+| B-016 | [CORE] M1 | Path MTU handling for QUIC-over-UDP (avoid fragmentation; clamp inner MTU) | MED | Done (local) — outbound oversize-datagram guard in `pump` (`exceeds_datagram_limit` helper; rate-limited clean drop; startup log of the QUIC datagram ceiling vs inner MTU). IP fragmentation/ICMP PMTUD explicitly out of scope |
 
 ## M2 — Cross-platform TUN + network config
 
@@ -86,8 +86,8 @@ When an item ships: `Shipped — <commit> — <date>`.
 | B-025 | [CORE] M3 | Custom rustls verifier: pin peer by **SPKI fingerprint**; drop webpki-roots/CA trust | HIGH | Done (local) — pins peer by exact certificate (single-entry root store); webpki-roots dropped; SHA-256 cert fingerprint identifies the pin |
 | B-026 | [CORE] M3 | Fingerprint display + out-of-band verify (TOFU option) in CLI/TUI | MED | Done (local) — server + client + keygen log `sha256:…` fingerprints for out-of-band comparison |
 | B-027 | [CORE] M3 | `zeroize` private key material; key-file permission checks (chmod 600 / ACL) | MED | Done (local) — key held in `Zeroizing<Vec<u8>>`; key file `0600` on Unix |
-| B-028 | [CORE] M3 | Enforce no-payload logging in release builds; audit trace-level packet logging | MED | Pending |
-| B-029 | [CORE] M3 | Config validation with actionable errors; secrets never logged | MED | Pending |
+| B-028 | [CORE] M3 | Enforce no-payload logging in release builds; audit trace-level packet logging | MED | Done (local) — audited `engine`/`transport`/`net::device` (no payload logging found); documented no-payload policy in the engine module (payloads only under `#[cfg(debug_assertions)]` at `trace!`) |
+| B-029 | [CORE] M3 | Config validation with actionable errors; secrets never logged | MED | Done (local) — `Config::validate` + `ConfigError::Invalid { field, value, reason }` (IPv4/CIDR/port/non-empty checks); wired into `--config` (fail-fast load) and applied to server/client params |
 
 ## M4 — TUI control dashboard
 
@@ -108,11 +108,11 @@ When an item ships: `Shipped — <commit> — <date>`.
 
 | ID | Tag | Title | Priority | Status |
 |----|-----|-------|----------|--------|
-| B-038 | [CORE] M5 | Metrics surface (counters/histograms) feeding TUI and optional export | LOW | Partial — live counters/RTT surfaced via `LiveStats` to the TUI; a standalone export (e.g. Prometheus) is still pending |
+| B-038 | [CORE] M5 | Metrics surface (counters/histograms) feeding TUI and optional export | LOW | Done (local) — live counters/RTT surfaced to the TUI via `LiveStats`; `metrics::render_prometheus` + `serve` HTTP endpoint behind `--metrics-addr` (off by default; bind loopback) |
 | B-039 | [CORE] M5 | Headless `--daemon` mode + systemd unit (Linux server) | MED | Done (local) — `--daemon` flag (headless, ANSI-off logging for journald; conflicts with `--tui`); `packaging/systemd/vpn-rust-server.service` (Type=simple, CAP_NET_ADMIN, hardening). Note: true double-fork detach deferred — service managers supervise |
 | B-040 | [CORE] M5 | Client packaging: release binaries / installers per OS | MED | Done (local) — `.github/workflows/release.yml` (tag-triggered matrix build → per-OS archives → GitHub Release); `packaging/README.md` per-OS install notes |
 | B-041 | [CORE] M5 | Docs: quickstart, threat model, versioned wire-protocol spec | MED | Done (local) — `docs/QUICKSTART.md`, `docs/operations/THREAT_MODEL.md`, `docs/standards/WIRE_PROTOCOL.md` |
-| B-042 | [CORE] M5 | SemVer discipline; matched-build guarantee until protocol stabilizes | LOW | Partial — documented (versioning section in WIRE_PROTOCOL.md); not yet enforced in tooling |
+| B-042 | [CORE] M5 | SemVer discipline; matched-build guarantee until protocol stabilizes | LOW | Done (local) — `docs/standards/VERSIONING.md` (SemVer policy, `PROTOCOL_VERSION` exact-match + matched-build guarantee, breaking-change definition). Tooling enforcement remains optional future work |
 
 ---
 

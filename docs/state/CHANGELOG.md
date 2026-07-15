@@ -40,9 +40,26 @@ author: Derek Martinez
     archives → GitHub Release); `packaging/systemd/vpn-rust-server.service` + `packaging/` install docs.
 - **Fix:** boxed the large `toml::de::Error` in `config::ConfigError` (clippy `result_large_err`,
   newly enforced by a stricter clippy) so `clippy -D warnings` is clean again.
-- **Tests:** 36 unit + 2 integration + 2 doc (40 total) green; `clippy -D warnings` + `fmt` clean;
-  native Windows `cargo build`/`cargo build --release` succeed. **M4 done; M5 docs/packaging done;
-  remaining M5 is metrics export (B-038) + SemVer tooling (B-042), both LOW.**
+- **Hardening batch ("Group A", built via three parallel subagents on disjoint modules):**
+  - **B-029 config validation:** `Config::validate` + `ConfigError::Invalid { field, value, reason }`
+    (IPv4 / CIDR / port / non-empty checks, fail-fast). Wired `--config` to load+validate (bails
+    with the actionable error) and overlay the file's addressing/paths onto the server/client params
+    — closing the long-standing "config reserved but unwired" gap.
+  - **B-016 PMTU guard:** `pump` now guards outbound packets against `max_datagram_size()`
+    (`exceeds_datagram_limit` helper; rate-limited clean drop; startup log of the datagram ceiling
+    vs inner MTU). IP fragmentation / ICMP PMTUD explicitly out of scope.
+  - **B-028 no-payload logging:** audited engine/transport/device (none present) and documented the
+    policy in the engine module (payload bytes only under `#[cfg(debug_assertions)]` at `trace!`).
+  - **B-038 metrics:** `metrics::render_prometheus` + a dependency-free `serve` HTTP endpoint behind
+    `--metrics-addr` (off by default; bind loopback on a VPN host).
+  - **B-042 versioning:** `docs/standards/VERSIONING.md` (SemVer + `PROTOCOL_VERSION` matched-build
+    policy).
+- **Deferred:** B-009 workspace split (optional; structurally rewrites every path — better standalone).
+- **Tests:** 50 unit + 2 integration + 2 doc (54 total) green; `clippy -D warnings` + `fmt` clean;
+  native Windows `cargo build --release` succeeds; CLI smoke tests confirm `--tui`/`--daemon`
+  parse + conflict, `--metrics-addr` is present, and a bad `--config` fails fast with an actionable
+  error. **M0–M4 complete; M5 substantially complete (only optional tooling for B-042 enforcement
+  remains). The open gap is on-target runtime verification.**
 
 ## 2026-07-14
 
