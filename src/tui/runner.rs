@@ -1,166 +1,103 @@
-//! Terminal runner for the TUI.
+//! Terminal lifecycle and the async event loop for the dashboard.
+//!
+//! [`run_dashboard`] is the public entry point wired up under `--tui`. It owns
+//! a [`TerminalGuard`] (which enables raw mode and the alternate screen, and
+//! restores both on drop, even on panic) and drives a fixed-tick loop: sample
+//! the shared [`LiveStats`] and [`LogBuffer`], render, then poll crossterm for
+//! key input. The polling `read()` is blocking, but the timeout is small so the
+//! render cadence stays smooth; this loop only runs behind an interactive
+//! terminal, never in tests.
 
-use std::io::{self, stdout};
-use std::time::Duration;
+use std::io::{self, Stdout};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEventKind},
+    event::{self, Event, KeyEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use ratatui::prelude::*;
-use tokio::sync::mpsc;
+use ratatui::backend::CrosstermBackend;
 
-use super::app::{App, AppEvent, LogEntry, LogLevel};
-use super::ui;
+use crate::engine::LiveStats;
+use crate::tui::app::Dashboard;
+use crate::tui::logbuf::LogBuffer;
+use crate::tui::ui;
 
-/// Terminal wrapper that handles setup and cleanup.
-pub struct Terminal {
-    terminal: ratatui::Terminal<CrosstermBackend<io::Stdout>>,
+/// How often the dashboard resamples telemetry and redraws.
+const TICK: Duration = Duration::from_millis(150);
+/// How long each input poll blocks before yielding to the next tick.
+const POLL: Duration = Duration::from_millis(100);
+
+/// RAII terminal setup/teardown.
+///
+/// Construction enables raw mode and switches to the alternate screen;
+/// [`Drop`] unwinds both and restores the cursor, so the terminal is always
+/// left usable even if the event loop returns early or panics.
+struct TerminalGuard {
+    terminal: ratatui::Terminal<CrosstermBackend<Stdout>>,
 }
 
-impl Terminal {
-    /// Create and initialize the terminal.
-    pub fn new() -> Result<Self> {
-        enable_raw_mode().context("Failed to enable raw mode")?;
-        let mut stdout = stdout();
-        execute!(stdout, EnterAlternateScreen).context("Failed to enter alternate screen")?;
-
+impl TerminalGuard {
+    /// Enter raw mode and the alternate screen, returning a drawable terminal.
+    fn new() -> Result<Self> {
+        enable_raw_mode().context("failed to enable raw mode")?;
+        let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen).context("failed to enter alternate screen")?;
         let backend = CrosstermBackend::new(stdout);
-        let terminal =
-            ratatui::Terminal::new(backend).context("Failed to create terminal backend")?;
-
+        let terminal = ratatui::Terminal::new(backend).context("failed to build terminal")?;
         Ok(Self { terminal })
     }
-
-    /// Draw the UI.
-    pub fn draw(&mut self, app: &App) -> Result<()> {
-        self.terminal
-            .draw(|frame| ui::render(frame, app))
-            .context("Failed to draw UI")?;
-        Ok(())
-    }
-
-    /// Restore the terminal to its original state.
-    pub fn restore(&mut self) -> Result<()> {
-        disable_raw_mode().context("Failed to disable raw mode")?;
-        execute!(self.terminal.backend_mut(), LeaveAlternateScreen)
-            .context("Failed to leave alternate screen")?;
-        self.terminal
-            .show_cursor()
-            .context("Failed to show cursor")?;
-        Ok(())
-    }
 }
 
-impl Drop for Terminal {
+impl Drop for TerminalGuard {
     fn drop(&mut self) {
-        let _ = self.restore();
+        let _ = disable_raw_mode();
+        let _ = execute!(self.terminal.backend_mut(), LeaveAlternateScreen);
+        let _ = self.terminal.show_cursor();
     }
 }
 
-/// TUI event loop runner.
-pub struct TuiRunner {
-    terminal: Terminal,
-    app: App,
-    event_tx: mpsc::UnboundedSender<AppEvent>,
-}
+/// Run the live dashboard until the user quits.
+///
+/// `stats` and `logs` are the shared handles the engine writes to; this loop
+/// only reads snapshots from them. Returns once the user presses `q`/`Esc`; the
+/// terminal is restored via the [`TerminalGuard`] drop.
+pub async fn run_dashboard(stats: Arc<LiveStats>, logs: LogBuffer, is_server: bool) -> Result<()> {
+    let mut app = Dashboard::new(is_server);
+    let mut guard = TerminalGuard::new()?;
 
-impl TuiRunner {
-    /// Create a new TUI runner.
-    pub fn new(is_server: bool) -> Result<Self> {
-        let terminal = Terminal::new()?;
-        let (app, event_tx) = App::new(is_server);
+    while !app.should_quit() {
+        app.on_tick(stats.snapshot(), logs.snapshot());
 
-        Ok(Self {
-            terminal,
-            app,
-            event_tx,
-        })
-    }
+        guard
+            .terminal
+            .draw(|frame| ui::render(frame, &app))
+            .context("failed to draw dashboard")?;
 
-    /// Get a clone of the event sender for use in async tasks.
-    pub fn event_sender(&self) -> mpsc::UnboundedSender<AppEvent> {
-        self.event_tx.clone()
-    }
-
-    /// Get a reference to the stats handle for use in async tasks.
-    pub fn stats_handle(&self) -> std::sync::Arc<super::app::Stats> {
-        self.app.stats_handle()
-    }
-
-    /// Run the TUI event loop.
-    ///
-    /// This runs until the user quits or an error occurs.
-    /// The `tick_rate` parameter controls how often the UI refreshes.
-    pub async fn run(&mut self, tick_rate: Duration) -> Result<()> {
-        // Log startup
-        self.app.log(LogLevel::Info, "TUI started");
-
+        // Drain input for up to one tick, so keys feel responsive but the UI
+        // still refreshes on schedule when idle.
+        let deadline = Instant::now() + TICK;
         loop {
-            // Process any pending app events
-            self.app.process_events();
-
-            // Check if we should quit
-            if self.app.should_quit {
-                break;
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            let timeout = remaining.min(POLL);
+            if !event::poll(timeout).context("failed to poll for input")? {
+                if Instant::now() >= deadline {
+                    break;
+                }
+                continue;
             }
-
-            // Draw the UI
-            self.terminal.draw(&self.app)?;
-
-            // Poll for keyboard events
-            if event::poll(tick_rate).context("Failed to poll for events")? {
-                if let Event::Key(key) = event::read().context("Failed to read event")? {
-                    // Only handle key press events (not release)
-                    if key.kind == KeyEventKind::Press {
-                        self.handle_key(key.code);
-                    }
+            if let Event::Key(key) = event::read().context("failed to read input")? {
+                if key.kind == KeyEventKind::Press {
+                    app.on_key(key.code);
                 }
             }
-        }
-
-        Ok(())
-    }
-
-    /// Handle a key press.
-    fn handle_key(&mut self, key: KeyCode) {
-        match key {
-            KeyCode::Char('q') | KeyCode::Esc => {
-                self.app.should_quit = true;
+            if app.should_quit() || Instant::now() >= deadline {
+                break;
             }
-            KeyCode::Char('c') => {
-                // Clear logs
-                self.app.logs.clear();
-                self.app.log(LogLevel::Info, "Logs cleared");
-            }
-            KeyCode::Char('r') => {
-                // Request reconnection (send event)
-                self.app.log(LogLevel::Info, "Reconnection requested");
-                // The actual reconnection logic would be handled by the VPN code
-                // that receives this event
-            }
-            _ => {}
         }
     }
 
-    /// Restore the terminal (called automatically on drop, but can be called manually).
-    pub fn restore(&mut self) -> Result<()> {
-        self.terminal.restore()
-    }
-}
-
-/// Helper function to create a log entry.
-pub fn log_entry(level: LogLevel, message: impl Into<String>) -> LogEntry {
-    LogEntry {
-        timestamp: std::time::Instant::now(),
-        level,
-        message: message.into(),
-    }
-}
-
-/// Helper to send a log event.
-pub fn send_log(tx: &mpsc::UnboundedSender<AppEvent>, level: LogLevel, message: impl Into<String>) {
-    let _ = tx.send(AppEvent::Log(log_entry(level, message)));
+    Ok(())
 }

@@ -82,6 +82,14 @@ pub struct ServerArgs {
     /// Outbound interface for server NAT (auto-detected if omitted)
     #[arg(long)]
     pub nat_interface: Option<String>,
+
+    /// Run the live TUI control dashboard (primary UX)
+    #[arg(long, conflicts_with = "daemon")]
+    pub tui: bool,
+
+    /// Run headless with plain (non-ANSI) logging, suited to systemd/journald
+    #[arg(long)]
+    pub daemon: bool,
 }
 
 /// Client command arguments
@@ -126,6 +134,14 @@ pub struct ClientArgs {
     /// Maximum reconnection attempts (0 = unlimited)
     #[arg(long, default_value = "0")]
     pub max_reconnects: u32,
+
+    /// Run the live TUI control dashboard (primary UX)
+    #[arg(long, conflicts_with = "daemon")]
+    pub tui: bool,
+
+    /// Run headless with plain (non-ANSI) logging, suited to systemd/journald
+    #[arg(long)]
+    pub daemon: bool,
 }
 
 /// `keygen` command arguments
@@ -186,6 +202,8 @@ mod tests {
             cert: PathBuf::from("certs/server-cert.der"),
             key: PathBuf::from("certs/server-key.der"),
             nat_interface: None,
+            tui: false,
+            daemon: false,
         })
     }
 

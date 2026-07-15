@@ -15,24 +15,54 @@
 //! sudo vpn-rust client --server vpn.example.com --server-cert server-cert.der
 //! ```
 
+use std::future::Future;
 use std::net::{SocketAddr, ToSocketAddrs};
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use clap::Parser;
 use tracing::info;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::EnvFilter;
 
 use vpn_rust::cli::{Cli, Commands};
 use vpn_rust::crypto::NodeIdentity;
-use vpn_rust::engine::{self, ClientParams, ServerParams};
+use vpn_rust::engine::{self, ClientParams, LiveStats, ServerParams};
+use vpn_rust::tui::{self, LogBuffer};
+
+/// Capacity of the in-memory log ring rendered by the TUI.
+const TUI_LOG_CAPACITY: usize = 1000;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    // Initialize logging based on verbosity (RUST_LOG overrides the default).
-    let log_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(cli.log_level()));
-    tracing_subscriber::fmt().with_env_filter(log_filter).init();
+    // Whether the dashboard will own the terminal, and whether to run headless
+    // with plain logging (for journald). These are mutually exclusive (clap).
+    let (tui_enabled, daemon) = match &cli.command {
+        Commands::Server(a) => (a.tui, a.daemon),
+        Commands::Client(a) => (a.tui, a.daemon),
+        Commands::Keygen(_) => (false, false),
+    };
+
+    // In TUI mode `tracing` output is diverted into an in-memory buffer the
+    // dashboard renders — stdout is owned by the alternate screen. Otherwise it
+    // goes to stdout (ANSI disabled under --daemon for clean journald capture).
+    let log_buffer = if tui_enabled {
+        let buffer = LogBuffer::new(TUI_LOG_CAPACITY);
+        tracing_subscriber::registry()
+            .with(env_filter(&cli))
+            .with(buffer.layer())
+            .init();
+        Some(buffer)
+    } else {
+        tracing_subscriber::fmt()
+            .with_env_filter(env_filter(&cli))
+            .with_ansi(!daemon)
+            .init();
+        None
+    };
 
     info!("VPN-Rust v{}", env!("CARGO_PKG_VERSION"));
 
@@ -49,7 +79,14 @@ async fn main() -> Result<()> {
                 key_path: args.key,
                 nat_interface: args.nat_interface,
             };
-            engine::run_server(params).await
+            let stats = LiveStats::new(true);
+            run_session(
+                engine::run_server(params, stats.clone()),
+                stats,
+                log_buffer,
+                true,
+            )
+            .await
         }
         Commands::Client(args) => {
             let params = ClientParams {
@@ -63,7 +100,14 @@ async fn main() -> Result<()> {
                 no_reconnect: args.no_reconnect,
                 max_reconnects: args.max_reconnects,
             };
-            engine::run_client(params).await
+            let stats = LiveStats::new(false);
+            run_session(
+                engine::run_client(params, stats.clone()),
+                stats,
+                log_buffer,
+                false,
+            )
+            .await
         }
         Commands::Keygen(args) => {
             if !args.force && (args.cert.exists() || args.key.exists()) {
@@ -85,6 +129,37 @@ async fn main() -> Result<()> {
             );
             info!("fingerprint: {}", identity.fingerprint());
             Ok(())
+        }
+    }
+}
+
+/// Build the tracing filter from `RUST_LOG`, falling back to the CLI verbosity.
+fn env_filter(cli: &Cli) -> EnvFilter {
+    EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(cli.log_level()))
+}
+
+/// Run one VPN session, optionally under the live dashboard.
+///
+/// Without `log_buffer` the engine future is simply awaited (headless). With it,
+/// the engine runs on a background task while the blocking dashboard event loop
+/// owns the foreground; quitting the dashboard aborts the engine and returns.
+async fn run_session<F>(
+    engine_fut: F,
+    stats: Arc<LiveStats>,
+    log_buffer: Option<LogBuffer>,
+    is_server: bool,
+) -> Result<()>
+where
+    F: Future<Output = Result<()>> + Send + 'static,
+{
+    match log_buffer {
+        None => engine_fut.await,
+        Some(logs) => {
+            let engine = tokio::spawn(engine_fut);
+            let result = tui::run_dashboard(stats, logs, is_server).await;
+            // The operator quit (or the dashboard errored): stop the engine.
+            engine.abort();
+            result
         }
     }
 }
