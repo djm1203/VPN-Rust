@@ -12,6 +12,15 @@
 //! The engine publishes live telemetry (connection state, byte/packet counters,
 //! RTT, negotiated parameters, peer address) into a shared [`LiveStats`] handle
 //! that the TUI reads on each render tick (milestone M4).
+//!
+//! ## Logging policy — no packet payloads (B-028)
+//!
+//! Packet **contents/bytes** must never be logged in release builds; only
+//! packet **lengths and counts** may be logged. Diagnostic logging here records
+//! sizes (e.g. `n` bytes) and counters, never buffer contents or `{:?}` of
+//! payload bytes. Any future byte-level tracing must be gated behind
+//! `#[cfg(debug_assertions)]` and emitted at `trace!` so it is compiled out of
+//! release builds.
 
 pub mod stats;
 
@@ -281,21 +290,59 @@ async fn pump(
     // Buffer generously above the MTU to accommodate any TUN framing overhead.
     let buf_size = (tun.mtu() as usize).max(1500) + 64;
 
+    // Surface the effective datagram ceiling once, so the operator can see it
+    // relative to the TUN MTU (B-016). Logs sizes only — never payloads (B-028).
+    let tun_mtu = tun.mtu() as usize;
+    match transport.max_datagram_size() {
+        Some(limit) => {
+            info!("QUIC datagram size limit: {limit} bytes (inner TUN MTU: {tun_mtu} bytes)");
+            if tun_mtu > limit {
+                warn!(
+                    "inner TUN MTU ({tun_mtu}) exceeds the QUIC datagram limit ({limit}); \
+                     packets larger than {limit} bytes will be dropped — lower the inner MTU"
+                );
+            }
+        }
+        None => info!(
+            "QUIC datagram size limit: unknown (inner TUN MTU: {tun_mtu} bytes); \
+             oversize packets fall back to send-and-drop"
+        ),
+    }
+
     let outbound = {
         let tun = tun.clone();
         let transport = transport.clone();
         let stats = stats.clone();
         async move {
             let mut buf = vec![0u8; buf_size];
+            // Local counter for oversize drops; kept out of LiveStats by scope
+            // (stats.rs is out of scope) and used only to rate-limit warnings.
+            let mut oversize_drops: u64 = 0;
             loop {
                 let n = tun.recv_packet(&mut buf).await.context("TUN read failed")?;
                 if n == 0 {
                     continue;
                 }
+                // Guard against oversize datagrams before spending a copy/send:
+                // when the ceiling is known and exceeded, drop cleanly (no
+                // fragmentation / ICMP — explicitly out of scope for B-016).
+                if exceeds_datagram_limit(n, transport.max_datagram_size()) {
+                    oversize_drops += 1;
+                    // Rate-limit: warn on the first drop, then every 256th, to
+                    // avoid a per-packet log storm under a persistent MTU mismatch.
+                    if oversize_drops == 1 || oversize_drops.is_multiple_of(256) {
+                        let limit = transport.max_datagram_size().unwrap_or(0);
+                        warn!(
+                            "dropping oversize outbound packet ({n} bytes > {limit} limit); \
+                             {oversize_drops} oversize drop(s) so far — lower the inner MTU"
+                        );
+                    }
+                    continue;
+                }
                 let datagram = Bytes::copy_from_slice(&buf[..n]);
                 if let Err(e) = transport.send_datagram(datagram).await {
-                    // Oversized datagram or a closed connection: drop and continue
-                    // (the connection error surfaces via the inbound direction).
+                    // Closed connection or a size the ceiling didn't catch: drop
+                    // and continue (the connection error surfaces via inbound).
                     warn!("dropping outbound packet ({n} bytes): {e:#}");
                 } else {
                     stats.record_sent(n);
@@ -348,6 +395,14 @@ async fn pump(
     }
 }
 
+/// Whether a datagram of `n` bytes exceeds a known QUIC datagram `limit`.
+///
+/// Returns `false` when `limit` is `None` (the ceiling is unknown), so callers
+/// fall back to the send-and-handle-error path rather than dropping blindly.
+fn exceeds_datagram_limit(n: usize, limit: Option<usize>) -> bool {
+    matches!(limit, Some(limit) if n > limit)
+}
+
 /// Compute the network address in CIDR form for `ip`/`prefix`
 /// (e.g. `10.8.0.2/30` -> `10.8.0.0/30`).
 fn subnet_cidr(ip: Ipv4Addr, prefix: u8) -> String {
@@ -366,8 +421,21 @@ fn load_certificate(path: &std::path::Path) -> Result<CertificateDer<'static>> {
 
 #[cfg(test)]
 mod tests {
-    use super::subnet_cidr;
+    use super::{exceeds_datagram_limit, subnet_cidr};
     use std::net::Ipv4Addr;
+
+    #[test]
+    fn oversize_only_when_limit_known_and_exceeded() {
+        // Unknown ceiling: never treated as oversize (fall back to send path).
+        assert!(!exceeds_datagram_limit(0, None));
+        assert!(!exceeds_datagram_limit(65535, None));
+        // Known ceiling: strictly greater than the limit is oversize.
+        assert!(!exceeds_datagram_limit(1200, Some(1200))); // exactly at limit
+        assert!(!exceeds_datagram_limit(1199, Some(1200)));
+        assert!(exceeds_datagram_limit(1201, Some(1200)));
+        // Zero-length is never oversize.
+        assert!(!exceeds_datagram_limit(0, Some(0)));
+    }
 
     #[test]
     fn subnet_cidr_masks_host_bits() {
