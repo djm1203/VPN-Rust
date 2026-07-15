@@ -9,9 +9,10 @@ bind = "0.0.0.0"
 # Port to listen on
 port = 4433
 
-# TLS certificate and key paths
-cert = "certs/server.crt"
-key = "certs/server.key"
+# Server identity: DER-encoded self-signed certificate and private key.
+# Generated on first run (or via `vpn-rust keygen`) if absent.
+cert = "certs/server-cert.der"
+key = "certs/server-key.der"
 
 # TUN interface name
 tun_name = "rustvpn0"
