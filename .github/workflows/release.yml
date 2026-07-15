@@ -1,0 +1,92 @@
+name: Release
+
+# Cut a release by pushing a semver tag, e.g. `git tag v0.1.0 && git push origin v0.1.0`.
+# `workflow_dispatch` lets you exercise the build/package steps without publishing a Release
+# (the publish step only runs for real tag pushes).
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write  # required for softprops/action-gh-release to create/update the Release
+
+jobs:
+  # Build the release binary on each supported platform and package it into a
+  # per-OS archive. Action versions match .github/workflows/ci.yml for consistency.
+  build:
+    name: build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target_label: linux-x86_64
+            archive: tar.gz
+          - os: macos-latest
+            target_label: macos-arm64
+            archive: tar.gz
+          - os: windows-latest
+            target_label: windows-x86_64
+            archive: zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: build
+        run: cargo build --release --bin vpn-rust
+
+      # Package the binary into vpn-rust-<os>-<arch>.<ext>. On Windows the binary
+      # is vpn-rust.exe and we produce a .zip; on unix we produce a .tar.gz.
+      # NOTE: Windows *clients* also need wintun.dll beside the exe at runtime.
+      # wintun.dll is not redistributed here (licensing/provenance) — see packaging/README.md.
+      - name: package (unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          name="vpn-rust-${{ matrix.target_label }}"
+          mkdir -p "dist/${name}"
+          cp target/release/vpn-rust "dist/${name}/"
+          tar -czf "${name}.tar.gz" -C dist "${name}"
+
+      - name: package (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $name = "vpn-rust-${{ matrix.target_label }}"
+          New-Item -ItemType Directory -Force -Path "dist/$name" | Out-Null
+          Copy-Item target/release/vpn-rust.exe "dist/$name/"
+          Compress-Archive -Path "dist/$name" -DestinationPath "$name.zip"
+
+      - name: upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vpn-rust-${{ matrix.target_label }}
+          path: |
+            vpn-rust-${{ matrix.target_label }}.${{ matrix.archive }}
+          if-no-files-found: error
+
+  # Attach the packaged archives to a GitHub Release. Runs only for real tag pushes.
+  release:
+    name: publish release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: publish
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true

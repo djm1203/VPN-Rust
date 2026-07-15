@@ -1,0 +1,68 @@
+# systemd unit for the VPN-Rust server (Linux).
+#
+# Install: see packaging/systemd/README.md
+#   - binary at /usr/local/bin/vpn-rust
+#   - certs under /etc/vpn-rust/certs
+#
+# The server runs in the foreground; systemd supervises it directly (Type=simple).
+# It does NOT daemonize itself.
+#
+# CAPABILITIES / PRIVILEGE
+# ------------------------
+# Creating the TUN device and installing NAT/forwarding rules requires CAP_NET_ADMIN.
+# Rather than run as full root, we run as a dedicated unprivileged user and grant
+# only that one capability via ambient capabilities. Note that NoNewPrivileges is
+# intentionally NOT set: it would block the ambient-capability grant. If capability
+# juggling proves troublesome on your distro, the simplest fallback is to run as root
+# (set `User=root`, drop the AmbientCapabilities/CapabilityBoundingSet lines). See the
+# README for the trade-offs.
+
+[Unit]
+Description=VPN-Rust QUIC point-to-point VPN server
+Documentation=https://github.com/derekjm1203/VPN-Rust
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# Dedicated service account (create it first — see README). Comment these two lines
+# out (or set User=root) to run as root instead.
+User=vpn-rust
+Group=vpn-rust
+
+# Subcommand + flags. Mirrors `vpn-rust server` (see src/cli.rs):
+#   --bind/--port      UDP listen address for the QUIC endpoint
+#   --server-name      name embedded in the cert SAN (clients must match)
+#   --cert/--key       server certificate + private key (DER)
+# Adjust bind/port and tun-ip/prefix/mtu to taste; certs live under WorkingDirectory.
+WorkingDirectory=/etc/vpn-rust
+ExecStart=/usr/local/bin/vpn-rust server \
+    --bind 0.0.0.0 \
+    --port 4433 \
+    --server-name vpn.example.com \
+    --cert /etc/vpn-rust/certs/server-cert.der \
+    --key /etc/vpn-rust/certs/server-key.der
+
+Restart=on-failure
+RestartSec=5
+
+# --- Capabilities: grant CAP_NET_ADMIN only (TUN creation + NAT/routing) ---
+AmbientCapabilities=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
+
+# --- Hardening ---
+# ProtectSystem=strict: mounts the whole filesystem read-only except explicit
+# ReadWritePaths. ProtectHome hides /home,/root,/run/user. PrivateTmp gives a
+# private /tmp. The certs dir is writable so the server can generate cert/key on
+# first run if they are missing (see `vpn-rust keygen` / server auto-generation).
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/etc/vpn-rust/certs
+
+# /dev/net/tun must be reachable for TUN creation under DevicePolicy hardening.
+DeviceAllow=/dev/net/tun rw
+
+[Install]
+WantedBy=multi-user.target
