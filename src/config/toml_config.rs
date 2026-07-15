@@ -178,7 +178,7 @@ impl Config {
 
         let config: Config = toml::from_str(&content).map_err(|source| ConfigError::TomlFile {
             path: path.to_path_buf(),
-            source,
+            source: Box::new(source),
         })?;
 
         debug!("Parsed configuration: {:?}", config);

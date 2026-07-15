@@ -22,18 +22,22 @@ pub enum ConfigError {
     },
 
     /// A TOML configuration file failed to parse (path is known).
+    ///
+    /// The parse error is boxed because `toml::de::Error` is large; keeping it
+    /// inline would bloat every `Result<_, ConfigError>` (clippy
+    /// `result_large_err`).
     #[error("failed to parse TOML config file '{path}'")]
     TomlFile {
         /// The offending file path.
         path: PathBuf,
         /// The underlying TOML parse error.
         #[source]
-        source: toml::de::Error,
+        source: Box<toml::de::Error>,
     },
 
     /// TOML content failed to parse with no associated file path.
     #[error("invalid TOML configuration")]
-    Toml(#[from] toml::de::Error),
+    Toml(#[source] Box<toml::de::Error>),
 
     /// A required directive was missing from an OpenVPN configuration.
     #[error("missing '{directive}' directive in OpenVPN configuration")]
@@ -41,6 +45,12 @@ pub enum ConfigError {
         /// The name of the missing directive.
         directive: &'static str,
     },
+}
+
+impl From<toml::de::Error> for ConfigError {
+    fn from(source: toml::de::Error) -> Self {
+        ConfigError::Toml(Box::new(source))
+    }
 }
 
 /// Convenience alias for results within the configuration module.
