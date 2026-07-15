@@ -3,6 +3,7 @@
 //! This module provides the CLI argument parsing using clap's derive API.
 
 use clap::{Parser, Subcommand};
+use std::net::SocketAddr;
 use std::path::PathBuf;
 
 /// VPN-Rust: a personal, QUIC-based point-to-point VPN.
@@ -90,6 +91,10 @@ pub struct ServerArgs {
     /// Run headless with plain (non-ANSI) logging, suited to systemd/journald
     #[arg(long)]
     pub daemon: bool,
+
+    /// Serve Prometheus metrics on this address (e.g. 127.0.0.1:9095); off if unset
+    #[arg(long, value_name = "ADDR")]
+    pub metrics_addr: Option<SocketAddr>,
 }
 
 /// Client command arguments
@@ -142,6 +147,10 @@ pub struct ClientArgs {
     /// Run headless with plain (non-ANSI) logging, suited to systemd/journald
     #[arg(long)]
     pub daemon: bool,
+
+    /// Serve Prometheus metrics on this address (e.g. 127.0.0.1:9095); off if unset
+    #[arg(long, value_name = "ADDR")]
+    pub metrics_addr: Option<SocketAddr>,
 }
 
 /// `keygen` command arguments
@@ -204,6 +213,7 @@ mod tests {
             nat_interface: None,
             tui: false,
             daemon: false,
+            metrics_addr: None,
         })
     }
 

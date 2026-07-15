@@ -27,8 +27,10 @@ use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 
 use vpn_rust::cli::{Cli, Commands};
+use vpn_rust::config::{ClientConfig, Config, ServerConfig};
 use vpn_rust::crypto::NodeIdentity;
 use vpn_rust::engine::{self, ClientParams, LiveStats, ServerParams};
+use vpn_rust::metrics;
 use vpn_rust::tui::{self, LogBuffer};
 
 /// Capacity of the in-memory log ring rendered by the TUI.
@@ -66,9 +68,16 @@ async fn main() -> Result<()> {
 
     info!("VPN-Rust v{}", env!("CARGO_PKG_VERSION"));
 
+    // Load and validate the optional config file up front so a bad file fails
+    // fast with an actionable error before any network/TUN setup.
+    let config = match &cli.config {
+        Some(path) => Some(Config::from_file(path).context("failed to load configuration")?),
+        None => None,
+    };
+
     match cli.command {
         Commands::Server(args) => {
-            let params = ServerParams {
+            let mut params = ServerParams {
                 bind: resolve_addr(&args.bind, args.port)?,
                 server_name: args.server_name,
                 tun_name: args.tun_name,
@@ -79,7 +88,11 @@ async fn main() -> Result<()> {
                 key_path: args.key,
                 nat_interface: args.nat_interface,
             };
+            if let Some(sc) = config.as_ref().and_then(|c| c.server.as_ref()) {
+                apply_server_config(&mut params, sc)?;
+            }
             let stats = LiveStats::new(true);
+            spawn_metrics(args.metrics_addr, &stats);
             run_session(
                 engine::run_server(params, stats.clone()),
                 stats,
@@ -89,7 +102,7 @@ async fn main() -> Result<()> {
             .await
         }
         Commands::Client(args) => {
-            let params = ClientParams {
+            let mut params = ClientParams {
                 server_addr: resolve_addr(&args.server, args.port)?,
                 server_name: args.server_name,
                 server_cert_path: args.server_cert,
@@ -100,7 +113,11 @@ async fn main() -> Result<()> {
                 no_reconnect: args.no_reconnect,
                 max_reconnects: args.max_reconnects,
             };
+            if let Some(cc) = config.as_ref().and_then(|c| c.client.as_ref()) {
+                apply_client_config(&mut params, cc)?;
+            }
             let stats = LiveStats::new(false);
+            spawn_metrics(args.metrics_addr, &stats);
             run_session(
                 engine::run_client(params, stats.clone()),
                 stats,
@@ -136,6 +153,68 @@ async fn main() -> Result<()> {
 /// Build the tracing filter from `RUST_LOG`, falling back to the CLI verbosity.
 fn env_filter(cli: &Cli) -> EnvFilter {
     EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(cli.log_level()))
+}
+
+/// Spawn the Prometheus metrics endpoint if an address was requested.
+///
+/// It runs for the lifetime of the process on a background task; failures are
+/// logged and do not stop the VPN session.
+fn spawn_metrics(addr: Option<SocketAddr>, stats: &Arc<LiveStats>) {
+    if let Some(addr) = addr {
+        let stats = stats.clone();
+        tokio::spawn(async move {
+            if let Err(e) = metrics::serve(addr, stats).await {
+                tracing::warn!("metrics endpoint stopped: {e:#}");
+            }
+        });
+    }
+}
+
+/// Overlay the `[server]` config section onto CLI-derived parameters.
+///
+/// The config file supplies addressing and file paths; `--server-name` and
+/// `--mtu` have no config equivalent and are left as given on the CLI. Values in
+/// the file take precedence over the CLI defaults for the fields it covers.
+fn apply_server_config(params: &mut ServerParams, cfg: &ServerConfig) -> Result<()> {
+    params.bind = resolve_addr(&cfg.bind, cfg.port)?;
+    params.tun_name = cfg.tun_name.clone();
+    params.tun_ip = cfg
+        .server_ip
+        .parse()
+        .with_context(|| format!("invalid config server.server_ip '{}'", cfg.server_ip))?;
+    params.prefix = prefix_from_cidr(&cfg.subnet)?;
+    params.cert_path = cfg.cert.clone().into();
+    params.key_path = cfg.key.clone().into();
+    if cfg.nat_interface.is_some() {
+        params.nat_interface = cfg.nat_interface.clone();
+    }
+    Ok(())
+}
+
+/// Overlay the `[client]` config section onto CLI-derived parameters.
+///
+/// `--server-cert` and `--mtu` have no config equivalent and are left as given
+/// on the CLI. Values in the file take precedence over the CLI defaults for the
+/// fields it covers.
+fn apply_client_config(params: &mut ClientParams, cfg: &ClientConfig) -> Result<()> {
+    params.server_addr = resolve_addr(&cfg.server, cfg.port)?;
+    params.server_name = cfg.hostname.clone();
+    params.tun_name = cfg.tun_name.clone();
+    params.tun_ip = cfg
+        .client_ip
+        .parse()
+        .with_context(|| format!("invalid config client.client_ip '{}'", cfg.client_ip))?;
+    params.no_reconnect = cfg.no_reconnect;
+    params.max_reconnects = cfg.max_reconnects;
+    Ok(())
+}
+
+/// Extract the prefix length from a validated CIDR string (`"10.8.0.0/24"` → 24).
+fn prefix_from_cidr(cidr: &str) -> Result<u8> {
+    cidr.split_once('/')
+        .and_then(|(_, p)| p.parse::<u8>().ok())
+        .filter(|p| *p <= 32)
+        .with_context(|| format!("invalid config subnet CIDR '{cidr}'"))
 }
 
 /// Run one VPN session, optionally under the live dashboard.
